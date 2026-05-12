@@ -33,6 +33,17 @@ pub struct SubscribeParams {
     pub title: Option<String>,
 }
 
+/// How far back to look for cached messages.
+#[allow(dead_code)]
+pub enum Since {
+    /// Return messages with time >= this Unix timestamp.
+    Time(i64),
+    /// Return messages after the message with this ID (exclusive).
+    Id(String),
+    /// Return no cached messages (live stream only).
+    None,
+}
+
 impl SubscribeParams {
     pub fn is_poll(&self) -> bool {
         self.poll
@@ -41,16 +52,37 @@ impl SubscribeParams {
             .unwrap_or(false)
     }
 
-    pub fn since_time(&self) -> i64 {
+    /// Resolve the `since` parameter into a `Since` variant.
+    ///
+    /// Matching ntfy's parseSince() logic:
+    /// - No `since` on a live stream → Since::None (no cached messages)
+    /// - No `since` on a poll       → Since::Time(0) (all cached messages)
+    /// - `since=all`                → Since::Time(0)
+    /// - `since=none`               → Since::None
+    /// - `since=<unix timestamp>`   → Since::Time(ts)
+    /// - `since=<message id>`       → Since::Id(id)  ← fixes the re-appear bug
+    pub fn since(&self) -> Since {
         match self.since.as_deref() {
-            Some("all") => 0,
-            Some(s) => s.parse::<i64>().unwrap_or(0),
             None => {
                 if self.is_poll() {
-                    chrono::Utc::now().timestamp() - 10
+                    Since::Time(0) // bare ?poll=1 → return all cached
                 } else {
-                    chrono::Utc::now().timestamp()
+                    Since::None   // live stream → no cached messages
                 }
+            }
+            Some("all")  => Since::Time(0),
+            Some("none") => Since::None,
+            Some(s) => {
+                // Unix timestamp?
+                if let Ok(ts) = s.parse::<i64>() {
+                    return Since::Time(ts);
+                }
+                // Message ID (12-char alphanumeric)?
+                if crate::message::valid_message_id(s) {
+                    return Since::Id(s.to_string());
+                }
+                // Unrecognised — treat as "no cached messages"
+                Since::None
             }
         }
     }
@@ -90,11 +122,7 @@ pub async fn subscribe_sse(
     )?;
 
     if params.is_poll() {
-        let since = params.since_time();
-        let msgs = {
-            let conn = state.db.get()?;
-            cache::since_time(&conn, &topic, since)?
-        };
+        let msgs = resolve_since(&state, &topic, &params)?;
         let stream = stream::iter(msgs.into_iter().map(|m| {
             let data = serde_json::to_string(&m).unwrap_or_default();
             Ok::<Event, Infallible>(Event::default().data(data))
@@ -102,11 +130,7 @@ pub async fn subscribe_sse(
         return Ok(Sse::new(stream).into_response());
     }
 
-    let since = params.since_time();
-    let cached = {
-        let conn = state.db.get()?;
-        cache::since_time(&conn, &topic, since)?
-    };
+    let cached = resolve_since(&state, &topic, &params)?;
 
     let t = state.topics.get_or_create(&topic);
     let rx = t.tx.subscribe();
@@ -173,6 +197,20 @@ fn build_sse_stream(
 
 use crate::visitor::SubscriptionGuard;
 
+/// Resolve `params.since()` into a list of cached messages for a single topic.
+pub fn resolve_since(
+    state: &AppState,
+    topic: &str,
+    params: &SubscribeParams,
+) -> Result<Vec<Message>, AppError> {
+    let conn = state.db.get()?;
+    match params.since() {
+        Since::None      => Ok(vec![]),
+        Since::Time(ts)  => Ok(cache::since_time(&conn, topic, ts)?),
+        Since::Id(id)    => Ok(cache::since_id(&conn, topic, &id)?),
+    }
+}
+
 // ── NDJSON: GET /{topics}/json (raw newline-delimited, no SSE framing) ────────
 //
 // ntfy clients use this as the primary streaming format. Each line is a
@@ -208,11 +246,7 @@ pub async fn subscribe_ndjson(
         Permission::Read,
     )?;
 
-    let since = params.since_time();
-    let cached = {
-        let conn = state.db.get()?;
-        cache::since_time(&conn, &topic, since)?
-    };
+    let cached = resolve_since(&state, &topic, &params)?;
 
     if params.is_poll() {
         // Poll: return cached messages and close.
@@ -313,15 +347,11 @@ pub async fn subscribe_multi_sse(
         )?;
     }
 
-    let since = params.since_time();
     let mut cached: Vec<Message> = Vec::new();
     let mut receivers: Vec<broadcast::Receiver<Arc<Message>>> = Vec::new();
 
     for topic in &topics {
-        let mut msgs = {
-            let conn = state.db.get()?;
-            cache::since_time(&conn, topic, since)?
-        };
+        let mut msgs = resolve_since(&state, topic, &params)?;
         cached.append(&mut msgs);
         let t = state.topics.get_or_create(topic);
         receivers.push(t.tx.subscribe());
@@ -421,15 +451,11 @@ pub async fn subscribe_multi_ndjson(
         )?;
     }
 
-    let since = params.since_time();
     let mut cached: Vec<Message> = Vec::new();
     let mut receivers: Vec<broadcast::Receiver<Arc<Message>>> = Vec::new();
 
     for topic in &topics {
-        let mut msgs = {
-            let conn = state.db.get()?;
-            cache::since_time(&conn, topic, since)?
-        };
+        let mut msgs = resolve_since(&state, topic, &params)?;
         cached.append(&mut msgs);
         let t = state.topics.get_or_create(topic);
         receivers.push(t.tx.subscribe());

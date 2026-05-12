@@ -1,5 +1,5 @@
 use crate::message::Message;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 
 /// Persist a message to the cache with immediate delivery (published=1).
 pub fn insert(conn: &Connection, msg: &Message) -> Result<()> {
@@ -101,19 +101,25 @@ pub fn since_time(conn: &Connection, topic: &str, since: i64) -> Result<Vec<Mess
     rows.collect()
 }
 
-#[allow(dead_code)]
-/// Retrieve messages for a topic published after the message with `since_id`.
-pub fn since_id(conn: &Connection, topic: &str, since_id: &str) -> Result<Vec<Message>> {
-    // Find the time of the anchor message, then return everything after it.
+/// Retrieve messages for a topic published after the message with `anchor_id` (exclusive).
+///
+/// If the anchor message is not found (expired or never existed), returns an
+/// empty list — the client is up to date. This prevents re-delivering messages
+/// the client has already seen when it reconnects with a known message ID.
+pub fn since_id(conn: &Connection, topic: &str, anchor_id: &str) -> Result<Vec<Message>> {
     let anchor_time: Option<i64> = conn
         .query_row(
             "SELECT time FROM messages WHERE id = ?1 AND topic = ?2",
-            params![since_id, topic],
+            params![anchor_id, topic],
             |row| row.get(0),
         )
-        .ok();
+        .optional()?;
 
-    let since = anchor_time.unwrap_or(0);
+    let since = match anchor_time {
+        Some(t) => t,
+        None => return Ok(vec![]), // anchor expired or unknown — nothing new to deliver
+    };
+
     let mut stmt = conn.prepare_cached(
         "SELECT id, sequence_id, time, expires, topic, message, title, priority,
                 tags, click, icon, actions, content_type, encoding

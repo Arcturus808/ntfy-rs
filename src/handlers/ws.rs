@@ -1,10 +1,10 @@
 use crate::{
     auth::{authorize, AuthUser, Permission},
-    db::cache,
     error::AppError,
     message::{parse_topics, valid_topic, Message},
     state::AppState,
 };
+use super::subscribe::{resolve_since, SubscribeParams};
 use axum::{
     extract::{
         ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
@@ -17,7 +17,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::{sync::broadcast, time};
 use tokio_stream::{wrappers::BroadcastStream, StreamExt as _};
 
-use super::subscribe::SubscribeParams;
+
 
 // ── Single-topic WebSocket ────────────────────────────────────────────────────
 
@@ -52,11 +52,7 @@ pub async fn subscribe_ws(
         Permission::Read,
     )?;
 
-    let since = params.since_time();
-    let cached = {
-        let conn = state.db.get()?;
-        cache::since_time(&conn, &topic, since)?
-    };
+    let cached = resolve_since(&state, &topic, &params)?;
 
     let t = state.topics.get_or_create(&topic);
     let rx = t.tx.subscribe();
@@ -96,17 +92,12 @@ pub async fn subscribe_ws_multi(
         )?;
     }
 
-    let since = params.since_time();
-
     // Collect cached messages and subscribe to each topic's broadcast channel.
     let mut cached: Vec<Message> = Vec::new();
     let mut receivers: Vec<broadcast::Receiver<Arc<Message>>> = Vec::new();
 
     for topic in &topics {
-        let mut msgs = {
-            let conn = state.db.get()?;
-            cache::since_time(&conn, topic, since)?
-        };
+        let mut msgs = resolve_since(&state, topic, &params)?;
         cached.append(&mut msgs);
         let t = state.topics.get_or_create(topic);
         receivers.push(t.tx.subscribe());

@@ -152,6 +152,11 @@ pub fn generate_id() -> String {
         .collect()
 }
 
+/// Validate a message ID: exactly MESSAGE_ID_LENGTH alphanumeric characters.
+pub fn valid_message_id(id: &str) -> bool {
+    id.len() == MESSAGE_ID_LENGTH && id.chars().all(|c| c.is_ascii_alphanumeric())
+}
+
 /// Validate a topic name: 1–64 chars, alphanumeric plus `-` and `_`.
 pub fn valid_topic(topic: &str) -> bool {
     !topic.is_empty()
