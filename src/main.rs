@@ -82,7 +82,8 @@ async fn main() -> anyhow::Result<()> {
         _ => None,
     };
 
-    // ── Unix socket listener (optional) ──────────────────────────────────
+    // ── Unix socket listener (optional, Unix only) ───────────────────────
+    #[allow(unused_variables)]
     let unix_path = cfg.listen_unix.clone();
 
     // Serve all listeners concurrently; if any fails the process exits.
@@ -103,11 +104,11 @@ async fn main() -> anyhow::Result<()> {
             res?;
         }
         res = async {
+            #[cfg(unix)]
             if let Some(path) = unix_path {
-                serve_unix(path, app.clone()).await
-            } else {
-                std::future::pending::<anyhow::Result<()>>().await
+                return serve_unix(path, app.clone()).await;
             }
+            std::future::pending::<anyhow::Result<()>>().await
         } => {
             res?;
         }
