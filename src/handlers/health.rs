@@ -50,6 +50,27 @@ pub async fn version() -> Json<Value> {
     }))
 }
 
+/// GET /v1/config — server capability response expected by ntfy iOS/Android apps.
+///
+/// The app uses this to confirm it is talking to a ntfy server and to discover
+/// which features are enabled. We return a minimal response with the fields the
+/// app actually checks; everything optional is false/empty.
+pub async fn config(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({
+        "base_url":             state.config.base_url,
+        "app_root":             "/",
+        "enable_login":         state.config.auth_enabled,
+        "require_login":        false,
+        "enable_signup":        state.config.auth_enabled,
+        "enable_payments":      false,
+        "enable_calls":         false,
+        "enable_emails":        false,
+        "enable_reservations":  false,
+        "enable_web_push":      false,
+        "disallowed_topics":    [],
+    }))
+}
+
 /// GET /v1/stats
 pub async fn stats(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
     let messages = {

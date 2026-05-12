@@ -47,6 +47,7 @@ pub fn build(state: AppState) -> Router {
         .route("/v1/account",                post(account::register))
         .route("/v1/health",                 get(health::health))
         .route("/v1/version",                get(health::version))
+        .route("/v1/config",                 get(health::config))
         .route("/v1/stats",                  get(health::stats))
         // Matrix Push Gateway discovery (unauthenticated GET).
         .route("/_matrix/push/v1/notify",    get(matrix::discovery))
