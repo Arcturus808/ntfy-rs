@@ -297,11 +297,20 @@ The pushkey must be a full ntfy topic URL on this server, e.g. `https://ntfy.exa
 
 ## iOS upstream poll-forward
 
-When a message is published, ntfy-rs can forward a lightweight poll request to an upstream ntfy server (e.g. ntfy.sh) to wake iOS clients via APNs. The topic name is SHA-256 hashed before forwarding so the upstream server never sees it.
+iOS clients cannot receive push notifications directly from a self-hosted server — APNs requires a trusted intermediary. ntfy-rs solves this by forwarding a lightweight wake signal to ntfy.sh on each publish. ntfy.sh triggers APNs, the iOS app wakes, and polls your server for the actual message. Message content never passes through ntfy.sh.
+
+**`base_url` is required** — the topic hash sent to ntfy.sh is derived from the full topic URL (`base_url/topic`). Without it the wrong hash is sent and iOS notifications will not arrive.
 
 ```toml
+base_url              = "http://192.168.0.82:2586"
 upstream_base_url     = "https://ntfy.sh"
-upstream_access_token = ""   # optional
+upstream_access_token = ""   # optional; set if you have a ntfy.sh account with higher rate limits
+```
+
+Or via CLI flags:
+
+```powershell
+.\ntfy-rs.exe --listen-http :2586 --base-url http://192.168.0.82:2586 --upstream-base-url https://ntfy.sh
 ```
 
 ## Logging

@@ -478,6 +478,12 @@ All message events share this structure. Fields with zero/empty values are omitt
 
 ---
 
+## iOS upstream poll-forward
+
+The upstream poll-forward sends a `POST` to `{upstream_base_url}/{sha256(base_url + "/" + topic)}` with an `X-Poll-ID: <message_id>` header. The topic is hashed from its full URL so the upstream server never learns the actual topic name.
+
+`base_url` must be configured for this to work. The hash is derived from the full topic URL — if `base_url` is wrong or missing, the upstream server cannot route the wake signal to the correct subscriber and iOS notifications will not arrive.
+
 ## Known limitations
 
 - Certificate hot-reload not supported; restart required for new TLS cert.
