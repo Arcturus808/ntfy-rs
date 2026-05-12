@@ -1,0 +1,63 @@
+[package]
+name = "ntfy-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Lightweight pub/sub notification server"
+
+[[bin]]
+name = "ntfy-rs"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP server
+axum = { version = "0.7", features = ["ws"] }
+tower = { version = "0.4" }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# SQLite (statically linked — no system dep, no CGO equivalent)
+rusqlite = { version = "0.31", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Config: TOML file + env override
+config = { version = "0.14", default-features = false, features = ["toml"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Rate limiting (token bucket)
+governor = { version = "0.6", features = ["dashmap"] }
+
+# Concurrent hash map (visitor + topic maps)
+dashmap = "5"
+
+# Password hashing
+bcrypt = "0.15"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# Utilities
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+uuid = { version = "1", features = ["v4"] }
+anyhow = "1"
+toml = "0.8"
+futures-util = "0.3"
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[profile.release]
+opt-level = "z"      # optimise for size
+lto = true           # link-time optimisation
+codegen-units = 1    # single codegen unit for better dead-code elimination
+strip = true         # strip symbols (equivalent to -s -w in Go)
+panic = "abort"      # smaller binary; no unwinding tables
