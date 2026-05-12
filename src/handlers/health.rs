@@ -12,8 +12,9 @@ pub async fn health() -> Json<Value> {
 /// GET /{topic}/auth — ntfy client auth check.
 ///
 /// The ntfy iOS and Android apps hit this before subscribing to verify
-/// credentials. Return 200 when auth is disabled or the caller is authenticated,
-/// 401 when auth is enabled and no/invalid credentials were supplied.
+/// credentials. Must return `{"success":true}` with 200 when auth is disabled
+/// or the caller is authenticated, or 401 when credentials are required but
+/// missing/invalid. The app checks the JSON body, not just the status code.
 pub async fn topic_auth(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -21,15 +22,9 @@ pub async fn topic_auth(
     use crate::auth::{authorize, Permission};
     use axum::http::StatusCode;
 
-    // Re-use the topic path parameter isn't needed here — the app only checks
-    // whether the server accepts the credentials at all, not per-topic access.
-    // A 200 means "credentials OK (or auth disabled)", 401 means "try again with creds".
     if !state.config.auth_enabled {
-        return StatusCode::OK;
+        return (StatusCode::OK, Json(json!({ "success": true }))).into_response();
     }
-    // Auth is enabled — check if the caller authenticated successfully.
-    // We do a dummy authorize against a placeholder topic; if they're logged in
-    // at all (or default_access allows it) we return 200.
     match authorize(
         state.effective_auth_db(),
         &state.config,
@@ -37,8 +32,8 @@ pub async fn topic_auth(
         "auth",
         Permission::Read,
     ) {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::UNAUTHORIZED,
+        Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))).into_response(),
+        Err(_) => (StatusCode::UNAUTHORIZED, Json(json!({ "success": false }))).into_response(),
     }
 }
 
