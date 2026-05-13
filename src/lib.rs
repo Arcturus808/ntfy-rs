@@ -102,6 +102,11 @@ impl ServerHandle {
 ///
 /// Blocks until the server has bound its port (or returns an error).
 /// Returns a handle that can be used to publish messages and shut down the server.
+///
+/// Prefer [`start_async`] when embedding ntfy-rs inside an application that
+/// already has a tokio runtime. `start` spawns a new OS thread and creates
+/// its own `tokio::runtime::Runtime`, which is necessary for sync callers but
+/// can be misread by behaviour-based AV scanners as an embedded backdoor pattern.
 pub fn start(config: Config) -> anyhow::Result<ServerHandle> {
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let (started_tx, started_rx) = std::sync::mpsc::channel::<anyhow::Result<u16>>();
@@ -128,6 +133,39 @@ pub fn start(config: Config) -> anyhow::Result<ServerHandle> {
         shutdown_tx,
         port,
     })
+}
+
+/// Start the ntfy-rs server as an async task within the **current** tokio runtime.
+///
+/// Preferred over [`start`] when the caller already has a tokio runtime
+/// (e.g. an `#[tokio::main]` application or an embedded async app). Uses
+/// `tokio::spawn` rather than spawning a dedicated OS thread with its own
+/// runtime, which avoids the "hidden thread + private runtime + network
+/// listener" pattern that behaviour-based AV scanners can misclassify as an
+/// embedded backdoor.
+///
+/// Awaits until the server has bound its port, then returns a [`ServerHandle`].
+pub async fn start_async(config: Config) -> anyhow::Result<ServerHandle> {
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let (started_tx, started_rx) = std::sync::mpsc::channel::<anyhow::Result<u16>>();
+
+    tokio::spawn(async move {
+        if let Err(e) = run_server(config, shutdown_rx, started_tx).await {
+            tracing::error!(error = %e, "ntfy-rs server error");
+        }
+    });
+
+    // `mpsc::Receiver::recv` is blocking. Offload to the blocking thread pool
+    // so the async executor is not stalled while the server binds its port.
+    // The send happens almost immediately after `TcpListener::bind`, so this
+    // completes in microseconds in practice.
+    let port = tokio::task::spawn_blocking(move || started_rx.recv())
+        .await
+        .map_err(|_| anyhow::anyhow!("startup task panicked"))?
+        .map_err(|_| anyhow::anyhow!("server task exited before startup"))?
+        .map_err(|e| anyhow::anyhow!("server failed to start: {}", e))?;
+
+    Ok(ServerHandle { shutdown_tx, port })
 }
 
 // ── Internal server runner ───────────────────────────────────────────────

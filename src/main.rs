@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
         "starting ntfy-rs"
     );
 
-    let handle = ntfy_rs::start(cfg)?;
+    let handle = ntfy_rs::start_async(cfg).await?;
 
     // Wait for Ctrl-C, then shut down gracefully.
     tokio::signal::ctrl_c().await?;
