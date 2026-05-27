@@ -462,7 +462,7 @@ ntfy-rs is a ground-up Rust reimplementation targeting a smaller binary and zero
 | Config file | ✅ (YAML) | ✅ (TOML) |
 | Environment variables | ✅ | ✅ |
 | CLI flags | ✅ | ✅ |
-| Prometheus metrics endpoint | ✅ | ❌ |
+| Prometheus metrics endpoint | ✅ | ✅ |
 | Web app (React SPA) | ✅ | ❌ |
 | Embeddable library | ❌ | ✅ |
 | Native Windows binary (no CGO) | ❌ | ✅ |
