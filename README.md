@@ -520,3 +520,7 @@ These are third-party paid services integrated into the ntfy.sh hosted offering.
 ---
 
 Features listed as "not yet" in the table above (PostgreSQL, SMTP ingress) are planned but not yet implemented.
+
+## License
+
+Dual-licensed under [Apache-2.0](LICENSE.Apache-2.0) and [GPL-2.0](LICENSE.GPL-2.0). You may use this software under the terms of either license, at your option.
