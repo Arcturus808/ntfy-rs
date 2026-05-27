@@ -51,7 +51,7 @@ The first build takes a few minutes (SQLite is compiled from source). Subsequent
 
 > **Note:** the Unix domain socket listener is disabled on Windows (`listen_unix` has no effect). All other features work normally.
 
-> **Windows AV note:** the release binary uses [aws-lc-rs](https://github.com/aws/aws-lc-rs) as the rustls crypto backend, which relies only on documented Windows APIs (`BCryptGenRandom`). Earlier builds used `ring`, which called the undocumented `SystemFunction036` (`RtlGenRandom`) and occasionally triggered false positives in behaviour-based AV scanners.
+> **Windows AV note:** the release binary uses [aws-lc-rs](https://github.com/aws/aws-lc-rs) as the crypto backend for all TLS operations across the entire dependency tree. It relies only on documented Windows APIs (`BCryptGenRandom`). The `ring` crate, which calls the undocumented `SystemFunction036` (`RtlGenRandom`) and can trigger false positives in behaviour-based AV scanners, is not present in the binary.
 
 ### Cross-compiling Windows binary from Linux
 
