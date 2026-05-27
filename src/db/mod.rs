@@ -1,3 +1,4 @@
+pub mod attachments;
 pub mod cache;
 pub mod schema;
 pub mod users;

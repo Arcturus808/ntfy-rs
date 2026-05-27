@@ -56,6 +56,23 @@ pub struct Message {
 
     #[serde(skip_serializing_if = "String::is_empty", default)]
     pub encoding: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<Attachment>,
+}
+
+/// File attachment metadata included in a message.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Attachment {
+    pub name: String,
+
+    /// MIME type of the attachment. Serialized as "type" for wire compatibility.
+    #[serde(rename = "type", skip_serializing_if = "String::is_empty", default)]
+    pub content_type: String,
+
+    pub size: u64,
+    pub expires: i64,
+    pub url: String,
 }
 
 fn is_zero(v: &i32) -> bool {
@@ -112,6 +129,7 @@ impl Message {
             actions: vec![],
             content_type: String::new(),
             encoding: String::new(),
+            attachment: None,
         }
     }
 
@@ -132,6 +150,7 @@ impl Message {
             actions: vec![],
             content_type: String::new(),
             encoding: String::new(),
+            attachment: None,
         }
     }
 
@@ -153,6 +172,7 @@ impl Message {
             actions: vec![],
             content_type: String::new(),
             encoding: String::new(),
+            attachment: None,
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     auth,
-    handlers::{account, admin, health, matrix, publish, subscribe, ws},
+    handlers::{account, admin, file, health, matrix, publish, subscribe, ws},
     state::AppState,
 };
 use axum::{routing::{delete, get, post, put}, Router};
@@ -51,6 +51,8 @@ pub fn build(state: AppState) -> Router {
         .route("/v1/stats",                  get(health::stats))
         // Matrix Push Gateway discovery (unauthenticated GET).
         .route("/_matrix/push/v1/notify",    get(matrix::discovery))
+        // File attachment downloads (unauthenticated — opaque ID is the access control).
+        .route("/file/:id",                  get(file::serve_file))
         .with_state(state)
         .merge(protected)
         .layer(CorsLayer::permissive())

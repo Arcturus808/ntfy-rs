@@ -1,7 +1,7 @@
 use rusqlite::{Connection, Result};
 
 /// Current schema version. Bump when adding migrations.
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 
 /// Apply all pending migrations in order.
 pub fn migrate(conn: &Connection) -> Result<()> {
@@ -17,6 +17,9 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     }
     if version < 2 {
         migrate_v2(conn)?;
+    }
+    if version < 3 {
+        migrate_v3(conn)?;
     }
 
     Ok(())
@@ -84,6 +87,7 @@ fn migrate_v1(conn: &Connection) -> Result<()> {
             actions      TEXT NOT NULL DEFAULT '[]',
             content_type TEXT NOT NULL DEFAULT '',
             encoding     TEXT NOT NULL DEFAULT '',
+            attachment   TEXT NOT NULL DEFAULT '',
             published    INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (id, topic)
         );
@@ -97,6 +101,36 @@ fn migrate_v1(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_messages_due
             ON messages (time)
             WHERE published = 0;
+    ")?;
+
+    set_user_version(conn, SCHEMA_VERSION)?;
+    Ok(())
+}
+
+fn migrate_v3(conn: &Connection) -> Result<()> {
+    // Add attachment column to existing messages tables created before v3.
+    // ALTER TABLE ADD COLUMN is idempotent-safe in SQLite when the column
+    // does not already exist; we guard with a try/ignore pattern.
+    let _ = conn.execute_batch(
+        "ALTER TABLE messages ADD COLUMN attachment TEXT NOT NULL DEFAULT '';"
+    );
+
+    conn.execute_batch("
+        CREATE TABLE IF NOT EXISTS attachments (
+            id           TEXT PRIMARY KEY,
+            message_id   TEXT NOT NULL,
+            name         TEXT NOT NULL DEFAULT '',
+            content_type TEXT NOT NULL DEFAULT '',
+            size         INTEGER NOT NULL DEFAULT 0,
+            expires      INTEGER NOT NULL,
+            path         TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_attachments_expires
+            ON attachments (expires);
+
+        CREATE INDEX IF NOT EXISTS idx_attachments_message
+            ON attachments (message_id);
     ")?;
 
     set_user_version(conn, SCHEMA_VERSION)?;

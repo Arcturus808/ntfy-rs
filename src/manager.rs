@@ -1,4 +1,4 @@
-use crate::{db::cache, state::AppState, upstream};
+use crate::{db::{self, cache}, state::AppState, upstream};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
@@ -57,6 +57,20 @@ pub async fn run(state: AppState) {
                     Ok(n) if n > 0 => tracing::debug!(deleted = n, "expired messages pruned"),
                     Ok(_) => {}
                     Err(e) => tracing::warn!(error = %e, "failed to prune expired messages"),
+                }
+
+                // Expire old attachment files.
+                match db::attachments::delete_expired(&conn, now) {
+                    Ok(paths) if !paths.is_empty() => {
+                        for path in &paths {
+                            if let Err(e) = std::fs::remove_file(path) {
+                                tracing::warn!(path = %path, error = %e, "failed to delete attachment file");
+                            }
+                        }
+                        tracing::debug!(deleted = paths.len(), "expired attachment files pruned");
+                    }
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!(error = %e, "failed to prune expired attachments"),
                 }
             }
             Err(e) => tracing::warn!(error = %e, "failed to get db connection for manager"),

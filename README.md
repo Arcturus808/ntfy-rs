@@ -238,8 +238,9 @@ curl -H "Delay: 30m" -d "Reminder" ntfy.example.com/mytopic
 | `X-Markdown` | `Markdown`, `md` | `1` to render body as Markdown |
 | `X-Actions` | `Actions`, `action` | Action buttons (see SPEC.md for format) |
 | `X-Encoding` | `Encoding`, `enc`, `e` | `base64` to send a binary body |
+| `X-Filename` | `Filename` | Filename for file attachment upload |
 | `X-Delay` | `Delay`, `X-At`, `At`, `X-In`, `In` | Scheduled delivery time |
-| `Content-Type` | | `text/markdown` sets Markdown rendering |
+| `Content-Type` | | `text/markdown` sets Markdown rendering; non-text type triggers attachment upload |
 
 ## Subscribing
 
@@ -433,7 +434,8 @@ ntfy-rs is a ground-up Rust reimplementation targeting a smaller binary and zero
 | Title, priority, tags, click URL, icon | ✅ | ✅ |
 | Markdown rendering (`X-Markdown`) | ✅ | ✅ |
 | Action buttons (`X-Actions`) | ✅ | ✅ |
-| File attachments (local storage / S3) | ✅ | ❌ |
+| File attachments (local disk storage) | ✅ | ✅ |
+| File attachments (S3 / remote storage) | ✅ | ❌ |
 | Base64-encoded binary body | ✅ | ✅ |
 
 #### Authentication & authorization

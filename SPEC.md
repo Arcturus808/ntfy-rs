@@ -84,8 +84,9 @@ Publish a message to a topic. Creates the topic if it does not exist.
 | `X-Markdown` | `Markdown`, `md` | bool | `1`/`true`/`yes` to render body as Markdown |
 | `X-Actions` | `Actions`, `action` | string | Action buttons (see below) |
 | `X-Encoding` | `Encoding`, `enc`, `e` | string | `base64` to send a binary body (see below) |
+| `X-Filename` | `Filename` | string | Upload request body as a file attachment (see below) |
 | `X-Delay` | `Delay`, `X-At`, `At`, `X-In`, `In` | string | Scheduled delivery (see below) |
-| `Content-Type` | | string | `text/markdown` sets Markdown rendering |
+| `Content-Type` | | string | `text/markdown` sets Markdown rendering; any non-text type triggers attachment upload |
 
 **Delay formats**
 
@@ -108,6 +109,64 @@ curl -H "X-Encoding: base64" \
 ```
 
 The server stores and forwards the base64 string as-is. Subscribers see `"encoding": "base64"` in the message JSON and are responsible for decoding. The server never encodes or decodes the body. Only `base64` is accepted; any other value returns `400`.
+
+**File attachments**
+
+To attach a file to a message, send the file bytes as the request body. The server stores the file on disk and embeds a download URL in the message.
+
+An upload is detected when **either** condition is true:
+- The `X-Filename` header (or `filename` query param) is present.
+- The `Content-Type` is present and is not `text/plain` or `text/markdown`.
+
+Attachments require `attachment_cache_dir` to be set in the server config; requests are rejected with `400` otherwise.
+
+```bash
+# Upload an image with an explicit filename
+curl -H "X-Filename: screenshot.png" \
+     -H "Content-Type: image/png" \
+     --data-binary @/path/to/screenshot.png \
+     ntfy.example.com/mytopic
+
+# Upload any file — Content-Type triggers attachment detection
+curl -H "Content-Type: application/zip" \
+     --data-binary @archive.zip \
+     ntfy.example.com/mytopic
+```
+
+The message response includes an `attachment` object:
+
+```json
+{
+  "id": "fBUMAXaH0XD3",
+  "event": "message",
+  "topic": "mytopic",
+  "message": "",
+  "attachment": {
+    "name": "screenshot.png",
+    "type": "image/png",
+    "size": 54321,
+    "expires": 1712399999,
+    "url": "https://ntfy.example.com/file/xK8pQrZt2mVw"
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | Filename (from `X-Filename` header, or `attachment-<id>` if absent) |
+| `type` | string | MIME type from `Content-Type` header (or `application/octet-stream`) |
+| `size` | integer | File size in bytes |
+| `expires` | integer | Unix timestamp after which the file is deleted (default: 3 hours) |
+| `url` | string | Download URL: `{base_url}/file/{id}` |
+
+**Config options for attachments:**
+
+| Option | Default | Description |
+|---|---|---|
+| `attachment_cache_dir` | *(none — attachments disabled)* | Directory where attachment files are stored |
+| `attachment_file_size_limit` | `15728640` (15 MiB) | Maximum size of a single uploaded file (bytes) |
+| `attachment_total_size_limit` | `5368709120` (5 GiB) | Maximum total storage across all attachments (bytes) |
+| `attachment_expiry_duration` | `10800` (3 hours) | How long attachment files are retained (seconds) |
 
 **Action button formats**
 
@@ -222,6 +281,30 @@ data: {"id":"...","time":...,"event":"message","topic":"mytopic","message":"Hell
 ### `GET /{topics}/ws` — WebSocket
 
 WebSocket stream. Used by the ntfy Android app by default. Same JSON message format as NDJSON. Supports `?auth=` query param for authentication (required for WebSocket clients that cannot set headers on the upgrade request).
+
+---
+
+## File attachments
+
+### `GET /file/:id` — download attachment
+
+Download a previously uploaded file attachment. The opaque ID in the URL acts as the access token — anyone who knows the URL can download the file.
+
+**Path parameters**
+
+| Parameter | Description |
+|---|---|
+| `id` | Opaque attachment ID (12-char alphanumeric) |
+
+**Responses**
+
+| Status | Description |
+|---|---|
+| `200 OK` | File bytes with `Content-Type` and `Content-Disposition: attachment; filename="<name>"` headers |
+| `404 Not Found` | ID does not exist or the attachment has expired |
+| `500 Internal Server Error` | Could not read the file from disk |
+
+Expired attachments return `404` immediately, even if the background cleanup task has not yet deleted the file.
 
 ---
 

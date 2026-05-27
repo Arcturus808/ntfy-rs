@@ -24,6 +24,9 @@ pub const DEFAULT_REQUEST_LIMIT_REPLENISH_SECS: u64 = 5;
 pub const DEFAULT_SUBSCRIPTION_LIMIT: u32 = 30;
 pub const DEFAULT_KEEPALIVE_SECS: u64 = 45;
 pub const DEFAULT_MANAGER_INTERVAL_SECS: u64 = 3 * 60; // 3 minutes
+pub const DEFAULT_ATTACHMENT_FILE_SIZE_LIMIT: u64  = 15 * 1024 * 1024;        // 15 MiB
+pub const DEFAULT_ATTACHMENT_TOTAL_SIZE_LIMIT: u64 = 5 * 1024 * 1024 * 1024; // 5 GiB
+pub const DEFAULT_ATTACHMENT_EXPIRY_SECS: u64      = 3 * 60 * 60;            // 3 hours
 
 /// Top-level CLI. Use `ntfy-rs serve` to start the server.
 #[derive(Parser, Debug)]
@@ -114,6 +117,15 @@ pub struct FileConfig {
     /// Maximum delay for scheduled messages (seconds). Default: 3 days.
     pub max_delay_secs: Option<u64>,
 
+    /// Directory for storing attachment files. Attachments are disabled when absent.
+    pub attachment_cache_dir: Option<PathBuf>,
+    /// Maximum size of a single uploaded file (bytes). Default: 15 MiB.
+    pub attachment_file_size_limit: Option<u64>,
+    /// Maximum total storage used by all attachments (bytes). Default: 5 GiB.
+    pub attachment_total_size_limit: Option<u64>,
+    /// How long attachment files are retained (seconds). Default: 3 hours.
+    pub attachment_expiry_duration: Option<u64>,
+
     /// HTTPS listen address (e.g. ":443"). Requires cert_file + key_file.
     pub listen_https: Option<String>,
     /// Path to PEM-encoded TLS certificate (or full chain).
@@ -161,6 +173,15 @@ pub struct Config {
 
     /// Unix domain socket path. None = disabled.
     pub listen_unix: Option<PathBuf>,
+
+    /// Directory for attachment files. None = attachments disabled.
+    pub attachment_cache_dir: Option<PathBuf>,
+    /// Per-file size limit (bytes).
+    pub attachment_file_size_limit: u64,
+    /// Total storage limit across all attachments (bytes).
+    pub attachment_total_size_limit: u64,
+    /// Attachment retention period (seconds).
+    pub attachment_expiry_secs: u64,
 }
 
 impl Config {
@@ -218,6 +239,13 @@ impl Config {
             cert_file: cli.cert_file.clone().or(file.cert_file),
             key_file: cli.key_file.clone().or(file.key_file),
             listen_unix: cli.listen_unix.clone().or(file.listen_unix),
+            attachment_cache_dir: file.attachment_cache_dir,
+            attachment_file_size_limit: file.attachment_file_size_limit
+                .unwrap_or(DEFAULT_ATTACHMENT_FILE_SIZE_LIMIT),
+            attachment_total_size_limit: file.attachment_total_size_limit
+                .unwrap_or(DEFAULT_ATTACHMENT_TOTAL_SIZE_LIMIT),
+            attachment_expiry_secs: file.attachment_expiry_duration
+                .unwrap_or(DEFAULT_ATTACHMENT_EXPIRY_SECS),
         }
     }
 }

@@ -12,6 +12,9 @@ pub enum AppError {
     #[error("not found")]
     NotFound,
 
+    #[error("attachments are disabled (attachment_cache_dir is not configured)")]
+    AttachmentsDisabled,
+
     #[error("bad request: {0}")]
     BadRequest(String),
 
@@ -38,6 +41,7 @@ impl AppError {
     fn status(&self) -> StatusCode {
         match self {
             AppError::NotFound => StatusCode::NOT_FOUND,
+            AppError::AttachmentsDisabled => StatusCode::BAD_REQUEST,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::TopicInvalid => StatusCode::BAD_REQUEST,
             AppError::MessageTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
@@ -51,6 +55,7 @@ impl AppError {
     fn code(&self) -> u32 {
         match self {
             AppError::NotFound => 40401,
+            AppError::AttachmentsDisabled => 40003,
             AppError::BadRequest(_) => 40001,
             AppError::TopicInvalid => 40002,
             AppError::MessageTooLarge => 41301,

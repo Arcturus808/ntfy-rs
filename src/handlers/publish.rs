@@ -1,8 +1,8 @@
 use crate::{
     auth::{authorize, AuthUser, Permission},
-    db::cache,
+    db::{self, cache},
     error::AppError,
-    message::{generate_id, parse_topics, valid_topic, Action, Message},
+    message::{generate_id, parse_topics, valid_topic, Action, Attachment, Message},
     state::AppState,
     upstream,
 };
@@ -28,7 +28,19 @@ pub async fn publish(
     if !valid_topic(&topic) {
         return Err(AppError::TopicInvalid);
     }
-    if body.len() > state.config.message_size_limit {
+
+    // ── Detect attachment early (X-Filename or non-text Content-Type) ─────
+    let is_attachment = detect_attachment(&headers, &params);
+
+    // ── Size check ────────────────────────────────────────────────────────
+    if is_attachment {
+        if state.config.attachment_cache_dir.is_none() {
+            return Err(AppError::AttachmentsDisabled);
+        }
+        if body.len() as u64 > state.config.attachment_file_size_limit {
+            return Err(AppError::MessageTooLarge);
+        }
+    } else if body.len() > state.config.message_size_limit {
         return Err(AppError::MessageTooLarge);
     }
 
@@ -47,7 +59,12 @@ pub async fn publish(
         Permission::Write,
     )?;
 
-    let body_str = String::from_utf8_lossy(&body).into_owned();
+    // For attachments the message body field is empty; the bytes go to disk.
+    let body_str = if is_attachment {
+        String::new()
+    } else {
+        String::from_utf8_lossy(&body).into_owned()
+    };
     let mut msg = Message::new_message(&topic, body_str);
 
     // ── parse metadata headers + query params ────────────────────────────
@@ -89,6 +106,69 @@ pub async fn publish(
         }
     }
 
+    let now = chrono::Utc::now().timestamp();
+
+    // ── Attachment: write to disk and record metadata ─────────────────────
+    if is_attachment {
+        let cache_dir = state.config.attachment_cache_dir.as_ref().unwrap(); // safe: checked above
+
+        // Reject if accepting this file would exceed the total storage cap.
+        {
+            let conn = state.db.get()?;
+            let total = db::attachments::total_size(&conn)
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            if total + body.len() as u64 > state.config.attachment_total_size_limit {
+                return Err(AppError::BadRequest("attachment storage limit reached".into()));
+            }
+        }
+
+        let att_id = generate_id();
+        let file_name = param(&headers, &params, &["x-filename", "filename"])
+            .unwrap_or_else(|| format!("attachment-{att_id}"));
+        let att_content_type = headers
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("application/octet-stream")
+            .to_string();
+        let att_expires = now + state.config.attachment_expiry_secs as i64;
+        let att_path = cache_dir.join(&att_id);
+
+        tokio::fs::create_dir_all(cache_dir)
+            .await
+            .map_err(|e| AppError::Internal(format!("cannot create attachment dir: {e}")))?;
+        tokio::fs::write(&att_path, &body)
+            .await
+            .map_err(|e| AppError::Internal(format!("failed to write attachment: {e}")))?;
+
+        let base = state.config.base_url.trim_end_matches('/');
+        let att_url = format!("{base}/file/{att_id}");
+
+        msg.attachment = Some(Attachment {
+            name: file_name.clone(),
+            content_type: att_content_type.clone(),
+            size: body.len() as u64,
+            expires: att_expires,
+            url: att_url,
+        });
+
+        {
+            let conn = state.db.get()?;
+            db::attachments::insert(
+                &conn,
+                &db::attachments::AttachmentRecord {
+                    id: att_id,
+                    name: file_name,
+                    content_type: att_content_type,
+                    size: body.len() as u64,
+                    expires: att_expires,
+                    path: att_path.to_string_lossy().into_owned(),
+                },
+                &msg.id,
+            )
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        }
+    }
+
     // ── parse delay (X-Delay / X-At / X-In, header or query param) ───────
     let deliver_at: Option<i64> =
         if let Some(v) = param(&headers, &params, &["x-delay", "delay", "x-at", "at", "x-in", "in"]) {
@@ -98,7 +178,6 @@ pub async fn publish(
             None
         };
 
-    let now = chrono::Utc::now().timestamp();
     let expires = now + state.config.cache_duration_secs as i64;
     msg.expires = Some(expires);
 
@@ -164,6 +243,29 @@ pub async fn publish_multi(
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+/// Returns `true` when the request should be treated as a file attachment rather
+/// than a text message. This matches the `X-Filename` header (or `filename` query
+/// param) being set, OR the Content-Type being non-text.
+fn detect_attachment(headers: &HeaderMap, params: &HashMap<String, String>) -> bool {
+    // Explicit filename → definitely an attachment.
+    for name in &["x-filename", "filename"] {
+        if headers.contains_key(*name) {
+            return true;
+        }
+        if params.contains_key(*name) {
+            return true;
+        }
+    }
+    // Non-text Content-Type → treat as binary attachment.
+    if let Some(ct) = headers.get("content-type").and_then(|v| v.to_str().ok()) {
+        let ct = ct.to_lowercase();
+        if !ct.is_empty() && !ct.starts_with("text/plain") && !ct.starts_with("text/markdown") {
+            return true;
+        }
+    }
+    false
+}
 
 /// Read a parameter from headers first, then query string — matching ntfy's readParam().
 fn param(headers: &HeaderMap, query: &HashMap<String, String>, names: &[&str]) -> Option<String> {

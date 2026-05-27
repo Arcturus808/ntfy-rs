@@ -1,18 +1,19 @@
-use crate::message::Message;
+use crate::message::{Attachment, Message};
 use rusqlite::{params, Connection, OptionalExtension, Result};
 
 /// Persist a message to the cache with immediate delivery (published=1).
 pub fn insert(conn: &Connection, msg: &Message) -> Result<()> {
     let tags = serde_json::to_string(&msg.tags).unwrap_or_else(|_| "[]".into());
     let actions = serde_json::to_string(&msg.actions).unwrap_or_else(|_| "[]".into());
+    let attachment = serde_json::to_string(&msg.attachment).unwrap_or_else(|_| "".into());
     let expires = msg.expires.unwrap_or(0);
     let sequence_id = msg.sequence_id.as_deref().unwrap_or(&msg.id);
 
     conn.execute(
         "INSERT INTO messages
             (id, sequence_id, time, expires, topic, message, title, priority,
-             tags, click, icon, actions, content_type, encoding, published)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,1)",
+             tags, click, icon, actions, content_type, encoding, attachment, published)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,1)",
         params![
             msg.id,
             sequence_id,
@@ -28,6 +29,7 @@ pub fn insert(conn: &Connection, msg: &Message) -> Result<()> {
             actions,
             msg.content_type,
             msg.encoding,
+            attachment,
         ],
     )?;
     Ok(())
@@ -37,14 +39,15 @@ pub fn insert(conn: &Connection, msg: &Message) -> Result<()> {
 pub fn insert_delayed(conn: &Connection, msg: &Message) -> Result<()> {
     let tags = serde_json::to_string(&msg.tags).unwrap_or_else(|_| "[]".into());
     let actions = serde_json::to_string(&msg.actions).unwrap_or_else(|_| "[]".into());
+    let attachment = serde_json::to_string(&msg.attachment).unwrap_or_else(|_| "".into());
     let expires = msg.expires.unwrap_or(0);
     let sequence_id = msg.sequence_id.as_deref().unwrap_or(&msg.id);
 
     conn.execute(
         "INSERT INTO messages
             (id, sequence_id, time, expires, topic, message, title, priority,
-             tags, click, icon, actions, content_type, encoding, published)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,0)",
+             tags, click, icon, actions, content_type, encoding, attachment, published)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,0)",
         params![
             msg.id,
             sequence_id,
@@ -60,6 +63,7 @@ pub fn insert_delayed(conn: &Connection, msg: &Message) -> Result<()> {
             actions,
             msg.content_type,
             msg.encoding,
+            attachment,
         ],
     )?;
     Ok(())
@@ -69,7 +73,7 @@ pub fn insert_delayed(conn: &Connection, msg: &Message) -> Result<()> {
 pub fn due_messages(conn: &Connection, now: i64) -> Result<Vec<Message>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, sequence_id, time, expires, topic, message, title, priority,
-                tags, click, icon, actions, content_type, encoding
+                tags, click, icon, actions, content_type, encoding, attachment
          FROM messages
          WHERE published = 0 AND time <= ?1
          ORDER BY time ASC",
@@ -92,7 +96,7 @@ pub fn mark_published(conn: &Connection, id: &str) -> Result<()> {
 pub fn since_time(conn: &Connection, topic: &str, since: i64) -> Result<Vec<Message>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, sequence_id, time, expires, topic, message, title, priority,
-                tags, click, icon, actions, content_type, encoding
+                tags, click, icon, actions, content_type, encoding, attachment
          FROM messages
          WHERE topic = ?1 AND time >= ?2 AND published = 1
          ORDER BY time ASC",
@@ -125,7 +129,7 @@ pub fn since_id(conn: &Connection, topic: &str, anchor_id: &str) -> Result<Vec<M
 
     let mut stmt = conn.prepare_cached(
         "SELECT id, sequence_id, time, expires, topic, message, title, priority,
-                tags, click, icon, actions, content_type, encoding
+                tags, click, icon, actions, content_type, encoding, attachment
          FROM messages
          WHERE topic = ?1 AND time > ?2 AND published = 1
          ORDER BY time ASC",
@@ -139,7 +143,7 @@ pub fn since_id(conn: &Connection, topic: &str, anchor_id: &str) -> Result<Vec<M
 pub fn latest(conn: &Connection, topic: &str) -> Result<Option<Message>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, sequence_id, time, expires, topic, message, title, priority,
-                tags, click, icon, actions, content_type, encoding
+                tags, click, icon, actions, content_type, encoding, attachment
          FROM messages
          WHERE topic = ?1 AND published = 1
          ORDER BY time DESC
@@ -173,6 +177,7 @@ pub fn count(conn: &Connection) -> Result<i64> {
 fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<Message> {
     let tags_json: String = row.get(8)?;
     let actions_json: String = row.get(11)?;
+    let attachment_json: String = row.get(14)?;
     let expires: i64 = row.get(3)?;
     let sequence_id: String = row.get(1)?;
     let id: String = row.get(0)?;
@@ -181,6 +186,11 @@ fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<Message> {
         serde_json::from_str(&tags_json).unwrap_or_default();
     let actions: Vec<crate::message::Action> =
         serde_json::from_str(&actions_json).unwrap_or_default();
+    let attachment: Option<Attachment> = if attachment_json.is_empty() || attachment_json == "null" {
+        None
+    } else {
+        serde_json::from_str(&attachment_json).unwrap_or(None)
+    };
 
     Ok(Message {
         id: id.clone(),
@@ -202,5 +212,6 @@ fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<Message> {
         actions,
         content_type: row.get(12)?,
         encoding: row.get(13)?,
+        attachment,
     })
 }
