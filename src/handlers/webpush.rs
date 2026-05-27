@@ -21,8 +21,56 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use uuid::Uuid;
+
+// ── Endpoint validation ─────────────────────────────────────────────────────────
+
+/// Returns `true` if `endpoint` is safe to deliver push notifications to.
+///
+/// Prevents SSRF (cf. GHSA-w9hq-5jg7-q4j7 in ntfy Go v2.22.0): a malicious
+/// subscriber could register an internal URL (e.g. `https://169.254.169.254/`)
+/// and cause the server to exfiltrate requests to internal infrastructure on
+/// every publish. We defend by:
+///
+/// 1. Requiring a well-formed `https://` URL.
+/// 2. Rejecting raw IP addresses entirely — legitimate push service endpoints
+///    (FCM, Mozilla, etc.) are always domain names. This covers all private,
+///    loopback, link-local, and reserved ranges for both IPv4 and IPv6 without
+///    relying on unstable `IpAddr` methods.
+/// 3. Rejecting well-known local/reserved hostnames.
+fn valid_push_endpoint(endpoint: &str) -> bool {
+    let Ok(url) = Url::parse(endpoint) else {
+        return false;
+    };
+    if url.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    if host.is_empty() {
+        return false;
+    }
+    // Reject raw IP addresses (covers all private/loopback/link-local ranges).
+    if host.parse::<IpAddr>().is_ok() {
+        return false;
+    }
+    // Reject well-known local or reserved hostnames.
+    let h = host.to_ascii_lowercase();
+    if h == "localhost"
+        || h.ends_with(".localhost")
+        || h.ends_with(".local")
+        || h.ends_with(".internal")
+        || h.ends_with(".test")
+        || h.ends_with(".example")
+    {
+        return false;
+    }
+    true
+}
 
 // ── GET /v1/webpush/vapid-key ─────────────────────────────────────────────────
 
@@ -82,9 +130,9 @@ pub async fn subscribe(
         return Err(AppError::TopicInvalid);
     }
 
-    if !req.endpoint.starts_with("https://") {
+    if !valid_push_endpoint(&req.endpoint) {
         return Err(AppError::BadRequest(
-            "endpoint must use https://".into(),
+            "endpoint must be a valid https:// URL pointing to a public push service".into(),
         ));
     }
 
