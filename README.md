@@ -503,3 +503,20 @@ ntfy-rs is a ground-up Rust reimplementation targeting a smaller binary and zero
 | Phone call notifications (Twilio) | ✅ | ❌ |
 | Stripe billing / usage tiers | ✅ (ntfy.sh only) | ❌ |
 | PostgreSQL | supported | not yet |
+
+## Non-goals
+
+Some features present in ntfy (Go) are intentionally absent and are unlikely to be added:
+
+**Firebase Cloud Messaging (FCM)**
+FCM requires a Google account, a project API key, and sending notifications through Google's servers. ntfy-rs is designed for self-hosted deployments where avoiding proprietary third-party infrastructure is the point. Android clients using [UnifiedPush](https://unifiedpush.org/) work without FCM.
+
+**React web app**
+The upstream ntfy.sh web app is a separate React SPA that works against any wire-compatible server, including ntfy-rs. Bundling it into the server binary would add significant build complexity for something that is already available and maintained upstream.
+
+**Twilio voice calls and Stripe billing**
+These are third-party paid services integrated into the ntfy.sh hosted offering. They have no role in a self-hosted server binary.
+
+---
+
+Features listed as "not yet" in the table above (PostgreSQL, SMTP ingress) are planned but not yet implemented.
