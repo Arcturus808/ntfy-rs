@@ -1,1 +1,10 @@
 /target
+
+# SQLite database files (server data / test artefacts)
+*.db
+*.db-shm
+*.db-wal
+
+# Test / local config and attachment cache
+test.toml
+test-attachments/
