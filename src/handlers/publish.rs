@@ -1,6 +1,7 @@
 use crate::{
     auth::{authorize, AuthUser, Permission},
     db::{self, cache},
+    email,
     error::AppError,
     message::{generate_id, parse_topics, valid_topic, Action, Attachment, Message},
     state::AppState,
@@ -208,6 +209,14 @@ pub async fn publish(
             let msg_id2 = msg.id.clone();
             tokio::spawn(async move {
                 upstream::forward_poll(&state2.config, &topic2, &msg_id2, &state2.http).await;
+            });
+        }
+
+        // Outbound email notification — fire-and-forget.
+        if let Some(smtp) = state.config.smtp.clone() {
+            let msg2 = msg.clone();
+            tokio::spawn(async move {
+                email::send_notification(&smtp, &msg2).await;
             });
         }
     }

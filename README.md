@@ -379,6 +379,26 @@ Or via CLI flags:
 .\ntfy-rs.exe serve --listen-http :2586 --base-url http://192.168.0.82:2586 --upstream-base-url https://ntfy.sh
 ```
 
+## Outbound email notifications
+
+ntfy-rs can email you (or any address) whenever a message is published. Useful for alerting, SMS gateways, or as a fallback channel.
+
+```toml
+smtp_host     = "smtp.gmail.com"
+smtp_port     = 587                     # optional, default 587 (STARTTLS)
+smtp_username = "you@gmail.com"
+smtp_from     = "ntfy-rs <you@gmail.com>"
+smtp_to       = ["you@gmail.com", "5551234567@txt.carrier.com"]
+smtp_min_priority = 3                   # optional: only email priority >= 3 (default 0 = all)
+
+# Password — choose the most secure option available:
+smtp_password      = "app-password"          # least preferred (plaintext in config)
+smtp_password_file = "/run/secrets/smtp_pw"  # preferred for Docker / systemd
+# NTFY_SMTP_PASSWORD env var                 # most preferred
+```
+
+Email delivery is fire-and-forget — failures are logged but never cause a publish to fail. Email for delayed messages is sent at delivery time, not at scheduling time.
+
 ## Logging
 
 ```bash
@@ -478,7 +498,7 @@ ntfy-rs is a ground-up Rust reimplementation targeting a smaller binary and zero
 | Firebase Cloud Messaging (FCM) | ✅ (optional) | ❌ |
 | Web Push / VAPID | ✅ | ❌ |
 | SMTP ingress (publish via email) | ✅ | ❌ |
-| Email notifications (outbound) | ✅ | ❌ |
+| Email notifications (outbound) | ✅ | ✅ |
 | Phone call notifications (Twilio) | ✅ | ❌ |
 | Stripe billing / usage tiers | ✅ (ntfy.sh only) | ❌ |
 | PostgreSQL | supported | not yet |

@@ -135,6 +135,25 @@ pub struct FileConfig {
 
     /// Unix domain socket path. When set, the server also listens on this socket.
     pub listen_unix: Option<PathBuf>,
+
+    // ── Outbound email (SMTP) ─────────────────────────────────────────────
+    /// SMTP server hostname (e.g. "smtp.gmail.com"). Email is disabled when absent.
+    pub smtp_host: Option<String>,
+    /// SMTP server port. Default: 587 (STARTTLS).
+    pub smtp_port: Option<u16>,
+    /// SMTP login username.
+    pub smtp_username: Option<String>,
+    /// SMTP login password (plaintext convenience — prefer smtp_password_file or
+    /// the NTFY_SMTP_PASSWORD env var for anything security-sensitive).
+    pub smtp_password: Option<String>,
+    /// Path to a file containing the SMTP password (takes precedence over smtp_password).
+    pub smtp_password_file: Option<PathBuf>,
+    /// "From" address, e.g. "ntfy-rs <you@example.com>".
+    pub smtp_from: Option<String>,
+    /// Recipient addresses — every published message is emailed to all of them.
+    pub smtp_to: Option<Vec<String>>,
+    /// Only send email for messages with priority >= this value (1–5). 0 = send all.
+    pub smtp_min_priority: Option<u8>,
 }
 
 /// Resolved, fully-populated config used at runtime.
@@ -182,11 +201,32 @@ pub struct Config {
     pub attachment_total_size_limit: u64,
     /// Attachment retention period (seconds).
     pub attachment_expiry_secs: u64,
+
+    // ── Outbound email (SMTP) ─────────────────────────────────────────────
+    /// Resolved SMTP config. None = email disabled.
+    pub smtp: Option<SmtpConfig>,
+}
+
+/// Fully resolved SMTP settings (present only when email is enabled).
+#[derive(Debug, Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    /// Password resolved via env var > password_file > config field.
+    pub password: String,
+    pub from: String,
+    pub to: Vec<String>,
+    /// Minimum priority to trigger an email (0 = send for all priorities).
+    pub min_priority: u8,
 }
 
 impl Config {
     /// Build a resolved Config by merging file config with CLI overrides.
     pub fn resolve(file: FileConfig, cli: &ServeArgs) -> Self {
+        // Resolve smtp first — borrows `file` before any fields are moved out.
+        let smtp = resolve_smtp(&file);
+
         let listen_http = cli
             .listen_http
             .clone()
@@ -201,7 +241,7 @@ impl Config {
 
         let cache_file = cli.cache_file.clone().or(file.cache_file);
 
-        let auth_file = file.auth_file;
+        let auth_file = file.auth_file.clone();
         let auth_enabled = auth_file.is_some();
 
         Config {
@@ -246,8 +286,37 @@ impl Config {
                 .unwrap_or(DEFAULT_ATTACHMENT_TOTAL_SIZE_LIMIT),
             attachment_expiry_secs: file.attachment_expiry_duration
                 .unwrap_or(DEFAULT_ATTACHMENT_EXPIRY_SECS),
+            smtp,
         }
     }
+}
+
+/// Resolve SMTP config from FileConfig, applying the password priority:
+/// `NTFY_SMTP_PASSWORD` env var > `smtp_password_file` > `smtp_password` field.
+/// Returns None if smtp_host or smtp_to are absent (email disabled).
+fn resolve_smtp(file: &FileConfig) -> Option<SmtpConfig> {
+    let host = file.smtp_host.clone()?;
+    let to = file.smtp_to.clone().filter(|v| !v.is_empty())?;
+
+    let password = if let Ok(p) = std::env::var("NTFY_SMTP_PASSWORD") {
+        p
+    } else if let Some(ref path) = file.smtp_password_file {
+        std::fs::read_to_string(path)
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default()
+    } else {
+        file.smtp_password.clone().unwrap_or_default()
+    };
+
+    Some(SmtpConfig {
+        host,
+        port: file.smtp_port.unwrap_or(587),
+        username: file.smtp_username.clone().unwrap_or_default(),
+        password,
+        from: file.smtp_from.clone().unwrap_or_else(|| "ntfy-rs".to_string()),
+        to,
+        min_priority: file.smtp_min_priority.unwrap_or(0),
+    })
 }
 
 /// Load FileConfig from a TOML file. Missing file is not an error — returns defaults.

@@ -644,6 +644,44 @@ The upstream poll-forward sends a `POST` to `{upstream_base_url}/{sha256(base_ur
 
 `base_url` must be configured for this to work. The hash is derived from the full topic URL — if `base_url` is wrong or missing, the upstream server cannot route the wake signal to the correct subscriber and iOS notifications will not arrive.
 
+---
+
+## Outbound email notifications (SMTP)
+
+When configured, ntfy-rs sends an email for every published message (or only those meeting a minimum priority). Email is sent asynchronously — delivery failure never blocks or errors the publish request.
+
+### Config (`server.toml`)
+
+```toml
+smtp_host     = "smtp.gmail.com"
+smtp_port     = 587          # optional, default 587 (STARTTLS)
+smtp_username = "you@gmail.com"
+smtp_from     = "ntfy-rs <you@gmail.com>"
+smtp_to       = ["you@gmail.com", "5551234567@txt.carrier.com"]
+smtp_min_priority = 3        # optional: only email priority >= 3 (default 0 = all)
+
+# Password (choose one — priority: env var > file > inline)
+smtp_password      = "app-password"          # least preferred
+smtp_password_file = "/run/secrets/smtp_pw"  # preferred for containers/systemd
+# NTFY_SMTP_PASSWORD env var                 # most preferred
+```
+
+Email is disabled when `smtp_host` or `smtp_to` are absent.
+
+### Email format
+
+- **Subject:** `[ntfy/{topic}]` or `[ntfy/{topic}] {title}` when a title is set
+- **Body:** message text, tags, click link, attachment URL, topic, priority
+- **Transport:** STARTTLS on the configured port (default 587)
+
+### Password resolution
+
+The SMTP password is resolved in priority order:
+
+1. `NTFY_SMTP_PASSWORD` environment variable
+2. `smtp_password_file` — contents of the file at startup (whitespace trimmed)
+3. `smtp_password` — plaintext value in `server.toml`
+
 ## Known limitations
 
 - Certificate hot-reload not supported; restart required for new TLS cert.

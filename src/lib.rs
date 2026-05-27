@@ -1,6 +1,7 @@
 mod auth;
 pub mod config;
 mod db;
+mod email;
 mod error;
 mod handlers;
 mod manager;
