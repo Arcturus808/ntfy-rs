@@ -44,6 +44,12 @@ pub async fn serve_file(
         record.content_type
     };
 
+    let disposition = if content_type.starts_with("image/") {
+        format!("inline; filename=\"{safe_name}\"")
+    } else {
+        format!("attachment; filename=\"{safe_name}\"")
+    };
+
     let response = (
         StatusCode::OK,
         [
@@ -53,7 +59,7 @@ pub async fn serve_file(
             ),
             (
                 header::CONTENT_DISPOSITION,
-                format!("attachment; filename=\"{safe_name}\""),
+                disposition,
             ),
         ],
         bytes,

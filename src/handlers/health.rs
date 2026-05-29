@@ -53,15 +53,16 @@ pub async fn version() -> Json<Value> {
 pub async fn config(State(state): State<AppState>) -> Json<Value> {
     Json(json!({
         "base_url":             state.config.base_url,
+        "upstream_base_url":    state.config.upstream_base_url,
         "app_root":             "/",
         "enable_login":         state.config.auth_enabled,
         "require_login":        false,
         "enable_signup":        state.config.auth_enabled,
         "enable_payments":      false,
         "enable_calls":         false,
-        "enable_emails":        false,
+        "enable_emails":        state.config.smtp.is_some(),
         "enable_reservations":  false,
-        "enable_web_push":      false,
+        "enable_web_push":      state.vapid.is_some(),
         "disallowed_topics":    [],
     }))
 }

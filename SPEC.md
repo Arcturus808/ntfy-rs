@@ -116,7 +116,7 @@ To attach a file to a message, send the file bytes as the request body. The serv
 
 An upload is detected when **either** condition is true:
 - The `X-Filename` header (or `filename` query param) is present.
-- The `Content-Type` is present and is not `text/plain` or `text/markdown`.
+- The `Content-Type` is present and is not `text/plain`, `text/markdown`, or `application/x-www-form-urlencoded`.
 
 Attachments require `attachment_cache_dir` to be set in the server config; requests are rejected with `400` otherwise.
 
@@ -300,7 +300,7 @@ Download a previously uploaded file attachment. The opaque ID in the URL acts as
 
 | Status | Description |
 |---|---|
-| `200 OK` | File bytes with `Content-Type` and `Content-Disposition: attachment; filename="<name>"` headers |
+| `200 OK` | File bytes with `Content-Type` and `Content-Disposition` headers (`inline` for images, `attachment` for other types) |
 | `404 Not Found` | ID does not exist or the attachment has expired |
 | `500 Internal Server Error` | Could not read the file from disk |
 
@@ -331,6 +331,31 @@ Expired attachments return `404` immediately, even if the background cleanup tas
   "subscribers": 7
 }
 ```
+
+### `GET /v1/config`
+
+Server capability response used by ntfy iOS/Android apps to discover features.
+
+```json
+{
+  "base_url": "http://192.168.0.82:2586",
+  "upstream_base_url": "https://ntfy.sh",
+  "app_root": "/",
+  "enable_login": false,
+  "require_login": false,
+  "enable_signup": false,
+  "enable_payments": false,
+  "enable_calls": false,
+  "enable_emails": false,
+  "enable_reservations": false,
+  "enable_web_push": true,
+  "disallowed_topics": []
+}
+```
+
+The `upstream_base_url` field is required for iOS push notifications — the app reads it to register with the upstream APNs relay.
+
+---
 
 ### `GET /metrics`
 
@@ -642,7 +667,7 @@ All message events share this structure. Fields with zero/empty values are omitt
 
 The upstream poll-forward sends a `POST` to `{upstream_base_url}/{sha256(base_url + "/" + topic)}` with an `X-Poll-ID: <message_id>` header. The topic is hashed from its full URL so the upstream server never learns the actual topic name.
 
-`base_url` must be configured for this to work. The hash is derived from the full topic URL — if `base_url` is wrong or missing, the upstream server cannot route the wake signal to the correct subscriber and iOS notifications will not arrive.
+`base_url` must be configured for this to work. The hash is derived from the full topic URL — if `base_url` is wrong or missing, the upstream server cannot route the wake signal to the correct subscriber and iOS notifications will not arrive. **The `base_url` must include the port number** (even for default ports like 443 or 80) because the iOS app includes the port in its connection URL, and the hashes must match.
 
 ---
 

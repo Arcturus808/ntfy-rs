@@ -61,9 +61,11 @@ pub async fn publish(
         Permission::Write,
     )?;
 
-    // For attachments the message body field is empty; the bytes go to disk.
+    // For attachments the message body defaults to the filename (matching ntfy
+    // Go behaviour); the raw bytes go to disk, not into the message field.
+    let file_name_for_body = param(&headers, &params, &["x-filename", "filename"]);
     let body_str = if is_attachment {
-        String::new()
+        file_name_for_body.clone().unwrap_or_default()
     } else {
         String::from_utf8_lossy(&body).into_owned()
     };
@@ -86,6 +88,20 @@ pub async fn publish(
     }
     if let Some(v) = param(&headers, &params, &["x-icon", "icon"]) {
         msg.icon = v;
+    }
+    // X-Attach: external attachment URL (no file upload needed).
+    // The request Content-Type belongs to the message body, not the
+    // external resource, so we leave the attachment type empty.
+    if let Some(v) = param(&headers, &params, &["x-attach", "attach"]) {
+        let att_name = param(&headers, &params, &["x-filename", "filename"])
+            .unwrap_or_else(|| "attachment".to_string());
+        msg.attachment = Some(Attachment {
+            name: att_name,
+            content_type: String::new(),
+            size: 0,
+            expires: 0,
+            url: v,
+        });
     }
     if let Some(v) = param(&headers, &params, &["x-markdown", "markdown", "md"]) {
         if is_truthy(&v) {
@@ -234,7 +250,7 @@ pub async fn publish(
         }
     }
 
-    tracing::debug!(topic = %topic, id = %msg.id, delayed = is_delayed, "published");
+    tracing::info!(topic = %topic, id = %msg.id, delayed = is_delayed, "published");
     metrics::counter!("ntfy_messages_published_total").increment(1);
 
     Ok((StatusCode::OK, Json(msg)))
@@ -283,7 +299,11 @@ fn detect_attachment(headers: &HeaderMap, params: &HashMap<String, String>) -> b
     // Non-text Content-Type → treat as binary attachment.
     if let Some(ct) = headers.get("content-type").and_then(|v| v.to_str().ok()) {
         let ct = ct.to_lowercase();
-        if !ct.is_empty() && !ct.starts_with("text/plain") && !ct.starts_with("text/markdown") {
+        if !ct.is_empty()
+            && !ct.starts_with("text/plain")
+            && !ct.starts_with("text/markdown")
+            && !ct.starts_with("application/x-www-form-urlencoded")
+        {
             return true;
         }
     }

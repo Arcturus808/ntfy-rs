@@ -92,6 +92,7 @@ pub struct ServeArgs {
 
 /// File-based config (TOML). All fields are optional; defaults apply when absent.
 #[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct FileConfig {
     pub listen_http: Option<String>,
     pub base_url: Option<String>,

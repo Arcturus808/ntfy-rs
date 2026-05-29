@@ -36,7 +36,7 @@ pub struct Message {
     #[serde(skip_serializing_if = "String::is_empty", default)]
     pub message: String,
 
-    #[serde(skip_serializing_if = "is_zero", default)]
+    #[serde(skip_serializing_if = "is_zero_i32", default)]
     pub priority: i32,
 
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -70,12 +70,22 @@ pub struct Attachment {
     #[serde(rename = "type", skip_serializing_if = "String::is_empty", default)]
     pub content_type: String,
 
+    #[serde(skip_serializing_if = "is_zero_u64", default)]
     pub size: u64,
+    #[serde(skip_serializing_if = "is_zero_i64", default)]
     pub expires: i64,
     pub url: String,
 }
 
-fn is_zero(v: &i32) -> bool {
+fn is_zero_i32(v: &i32) -> bool {
+    *v == 0
+}
+
+fn is_zero_u64(v: &u64) -> bool {
+    *v == 0
+}
+
+fn is_zero_i64(v: &i64) -> bool {
     *v == 0
 }
 

@@ -147,6 +147,8 @@ All settings can be provided via config file (TOML), CLI flag, or `NTFY_*` envir
 
 ### Config file
 
+#### Public server (with real domain and Let's Encrypt)
+
 ```toml
 # /etc/ntfy-rs/server.toml
 
@@ -154,7 +156,13 @@ listen_http  = ":2586"
 listen_https = ":443"          # optional; requires cert_file + key_file
 listen_unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
 
-base_url     = "https://ntfy.example.com"
+# The public URL clients use to reach this server.
+# MUST include the port number — the iOS app includes the port when
+# registering with ntfy.sh for APNs, and the upstream poll-forward
+# hashes the full URL. A mismatch means lock screen notifications
+# will not arrive on iOS. (Android is unaffected — it uses a
+# persistent WebSocket, not APNs.)
+base_url     = "https://ntfy.example.com:443"
 cache_file   = "/var/lib/ntfy-rs/cache.db"
 
 # How long messages are retained (seconds). Default: 43200 (12 hours)
@@ -188,9 +196,43 @@ manager_interval = 180
 # Delayed message maximum (seconds). Default: 259200 (3 days)
 max_delay_secs = 259200
 
-# iOS upstream poll-forward
+# iOS upstream poll-forward — required for iOS lock screen notifications.
+# Without this, iOS clients only receive notifications while the app is open.
 upstream_base_url      = "https://ntfy.sh"
 upstream_access_token  = ""    # optional Bearer token for upstream
+```
+
+#### Local/LAN server (HTTP only, no TLS)
+
+```toml
+# server.toml — LAN-only setup, no TLS
+
+listen_http = ":2586"
+
+# base_url must include the port for iOS lock screen notifications to work.
+base_url             = "http://192.168.0.82:2586"
+upstream_base_url    = "https://ntfy.sh"
+cache_file           = "cache.db"
+attachment_cache_dir  = "attachments"
+```
+
+#### Local/LAN server (HTTPS with self-signed certificate)
+
+See the [TLS → With a self-signed certificate](#with-a-self-signed-certificate-locallan-only) section for the full step-by-step guide.
+
+```toml
+# server.toml — LAN with self-signed HTTPS
+
+listen_http  = ":2586"
+listen_https = ":443"
+
+base_url             = "https://192.168.0.82:443"   # must include port
+upstream_base_url    = "https://ntfy.sh"
+cache_file           = "cache.db"
+attachment_cache_dir  = "attachments"
+
+cert_file = "server-fullchain.crt"   # server cert + CA cert
+key_file  = "server.key"
 ```
 
 ### Environment variables
@@ -239,11 +281,16 @@ curl -H "Delay: 30m" -d "Reminder" ntfy.example.com/mytopic
 | `X-Markdown` | `Markdown`, `md` | `1` to render body as Markdown |
 | `X-Actions` | `Actions`, `action` | Action buttons (see SPEC.md for format) |
 | `X-Encoding` | `Encoding`, `enc`, `e` | `base64` to send a binary body |
+| `X-Attach` | `Attach` | External attachment URL (no file upload) |
 | `X-Filename` | `Filename` | Filename for file attachment upload |
 | `X-Delay` | `Delay`, `X-At`, `At`, `X-In`, `In` | Scheduled delivery time |
 | `Content-Type` | | `text/markdown` sets Markdown rendering; non-text type triggers attachment upload |
 
+> **iOS note:** The ntfy iOS app (as of v1.6) does not render attachment image previews in notifications or in-app. The Android app shows a download link but not an inline preview. Attachments are served correctly by ntfy-rs; image display is an app-side feature that has not shipped yet.
+
 ## Subscribing
+
+### API
 
 ```bash
 # NDJSON stream (primary — used by ntfy clients)
@@ -267,6 +314,18 @@ curl -s ntfy.example.com/topic1,topic2/json
 # WebSocket (used by ntfy Android app)
 # ws://ntfy.example.com/mytopic/ws
 ```
+
+### Mobile apps
+
+The subscription URL in the ntfy app **must match `base_url`** (including the port) for iOS lock screen notifications to work. The APNs hash is derived from the full URL, so a mismatch means the app won't be woken by push notifications.
+
+| Scenario | Server `base_url` | App subscription URL | Extra steps |
+|---|---|---|---|
+| **Public server, real domain** | `https://ntfy.example.com:443` | `https://ntfy.example.com:443` | None — real cert is trusted automatically |
+| **LAN, HTTP only** | `http://192.168.0.82:2586` | `http://192.168.0.82:2586` | None — simplest setup |
+| **LAN, HTTPS with self-signed cert** | `https://192.168.0.82:443` | `https://192.168.0.82:443` | Install CA cert on every device (see [TLS section](#with-a-self-signed-certificate-locallan-only)) |
+
+> **Tip:** For LAN-only setups, HTTP is the simplest option — no certificates to manage, no CA to install on devices. Everything works including iOS lock screen notifications.
 
 ## Authentication
 
@@ -342,11 +401,108 @@ curl -u admin:secret -X DELETE ntfy.example.com/v1/admin/users/bob
 
 ## TLS
 
+### With a real domain (recommended)
+
+Use a CA-signed certificate (e.g., Let's Encrypt). No special client configuration needed — iOS trusts it automatically.
+
 ```toml
 listen_https = ":443"
 cert_file    = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
 key_file     = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
 ```
+
+### With a self-signed certificate (local/LAN only)
+
+For servers on a local network without a public domain, you can use a self-signed certificate. This requires installing a custom CA on every iOS device that will connect — it is not practical for large deployments.
+
+> **Tip:** If you don't need encryption on your local network, HTTP works fine for both in-app and lock screen notifications. Self-signed HTTPS is only needed if you want TLS on a LAN without a public domain.
+
+#### Step 1: Generate the CA and server certificate
+
+Run these commands in a terminal (Git Bash on Windows, or any shell on Linux/macOS):
+
+```bash
+# --- Create the local CA ---
+openssl req -x509 -new -nodes -newkey rsa:2048 \
+  -keyout localCA.key -out localCA.crt \
+  -days 3650 \
+  -subj "/C=US/ST=State/L=Local/O=MyPrivateCA/CN=My Local Root CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -addext "subjectKeyIdentifier=hash"
+
+# --- Create the server certificate signing request ---
+# Replace 192.168.0.82 with your server's IP address.
+# You can also add a DNS name (e.g., DNS:myserver.local) to the SAN below.
+openssl req -new -nodes -newkey rsa:2048 \
+  -keyout server.key -out server.csr \
+  -subj "/CN=192.168.0.82"
+
+# --- Create the extensions config ---
+cat > san.ext << 'EOF'
+subjectAltName = IP:192.168.0.82
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+basicConstraints = CA:FALSE
+EOF
+
+# --- Sign the server certificate with the CA ---
+openssl x509 -req -in server.csr \
+  -CA localCA.crt -CAkey localCA.key -CAcreateserial \
+  -out server.crt -days 825 -extfile san.ext
+
+# --- Build the fullchain certificate (server cert + CA) ---
+cat server.crt localCA.crt > server-fullchain.crt
+```
+
+> **Windows (Git Bash):** Prefix the `openssl req` commands with `MSYS_NO_PATHCONV=1` to prevent Git Bash from mangling the `-subj` path argument. For example:
+> ```bash
+> MSYS_NO_PATHCONV=1 openssl req -x509 -new -nodes -newkey rsa:2048 \
+>   -keyout localCA.key -out localCA.crt \
+>   -days 3650 \
+>   -subj "/C=US/ST=State/L=Local/O=MyPrivateCA/CN=My Local Root CA" \
+>   -addext "basicConstraints=critical,CA:TRUE" \
+>   -addext "keyUsage=critical,keyCertSign,cRLSign" \
+>   -addext "subjectKeyIdentifier=hash"
+>
+> MSYS_NO_PATHCONV=1 openssl req -new -nodes -newkey rsa:2048 \
+>   -keyout server.key -out server.csr \
+>   -subj "/CN=192.168.0.82"
+> ```
+
+#### Step 2: Configure the server
+
+```toml
+listen_https = ":443"
+cert_file    = "server-fullchain.crt"   # fullchain, not just server.crt
+key_file     = "server.key"
+
+base_url     = "https://192.168.0.82:443"   # must include port
+```
+
+#### Step 3: Install the CA on client devices
+
+**iOS:**
+
+1. Transfer `localCA.crt` to the iPhone (AirDrop, email, or host it on the server).
+2. Open the file — iOS will prompt to install a configuration profile. Tap **Install** → **Install**.
+3. Go to **Settings → General → About → Certificate Trust Settings**. Toggle **full trust** ON for "My Local Root CA".
+4. Verify: open `https://192.168.0.82/v1/config` in Safari. It should load without any warning.
+
+**Android:**
+
+1. Transfer `localCA.crt` to the Android device.
+2. Go to **Settings → Security → Install from storage** (path varies by device; may be under **Settings → Security & privacy → Encryption & credentials → Install a certificate → CA certificate**).
+3. Select the `.crt` file and confirm.
+4. Verify: open `https://192.168.0.82/v1/config` in Chrome. It should load without any warning.
+
+> **Note:** On Android 7+, apps that don't explicitly opt in to trusting user-installed CAs will still reject self-signed certificates. The ntfy Android app does trust user CAs, so attachments and subscriptions work after installing the CA.
+
+#### Step 4: Subscribe in the ntfy app
+
+Use the full URL including port: `https://192.168.0.82:443`. The app must connect with the same URL that `base_url` is set to, or lock screen notifications will not work.
+
+---
 
 If `listen_https` is set but `cert_file`/`key_file` are missing, a warning is logged and the server continues on HTTP only. Certificate hot-reload is not supported; restart the server to pick up a new cert.
 
@@ -364,9 +520,22 @@ The pushkey must be a full ntfy topic URL on this server, e.g. `https://ntfy.exa
 
 ## iOS upstream poll-forward
 
-iOS clients cannot receive push notifications directly from a self-hosted server — APNs requires a trusted intermediary. ntfy-rs solves this by forwarding a lightweight wake signal to ntfy.sh on each publish. ntfy.sh triggers APNs, the iOS app wakes, and polls your server for the actual message. Message content never passes through ntfy.sh.
+Apple's **Apple Push Notification service (APNs)** is the only way to deliver push notifications to iOS devices when an app is in the background. Unlike Android, which can maintain a persistent connection to any server, iOS apps can only be woken in the background by APNs — and only apps distributed through the App Store can use APNs with their own certificate.
 
-**`base_url` is required** — the topic hash sent to ntfy.sh is derived from the full topic URL (`base_url/topic`). Without it the wrong hash is sent and iOS notifications will not arrive.
+This means a self-hosted ntfy-rs server **cannot wake the iOS ntfy app directly**. The ntfy iOS app is signed by the ntfy.sh developer and registered with APNs under the ntfy.sh certificate. Only ntfy.sh can trigger a wake-up.
+
+ntfy-rs works around this with **upstream poll-forward**:
+
+1. A message is published to your ntfy-rs server.
+2. ntfy-rs sends a lightweight wake signal to `upstream_base_url` (ntfy.sh). The topic is hashed (`sha256(base_url + "/" + topic)`) so ntfy.sh never learns the actual topic name or message content.
+3. ntfy.sh triggers APNs, which wakes the iOS app.
+4. The app polls your ntfy-rs server for the actual message.
+
+**Message content never passes through ntfy.sh** — it only carries the opaque hash and a message ID. This is why `upstream_base_url` and `base_url` must be configured correctly:
+
+- **`base_url`** is required — the topic hash is derived from the full topic URL (`base_url/topic`). Without it the wrong hash is sent and iOS notifications will not arrive.
+- **`base_url` must exactly match the URL the iOS app uses to connect, including the port number** — even for default ports like 443 or 80 (e.g. `https://192.168.0.82:443`, not `https://192.168.0.82`). The iOS app includes the port in its registration URL, so a mismatch causes the hash to differ and APNs wake-ups will not reach the device.
+- **Android is unaffected** — Android clients maintain a persistent WebSocket to your server and don't use APNs.
 
 ```toml
 base_url              = "http://192.168.0.82:2586"
@@ -456,7 +625,9 @@ ntfy-rs is a ground-up Rust reimplementation targeting a smaller binary and zero
 | Markdown rendering (`X-Markdown`) | ✅ | ✅ |
 | Action buttons (`X-Actions`) | ✅ | ✅ |
 | File attachments (local disk storage) | ✅ | ✅ |
+| File attachments (external URL, `X-Attach`) | ✅ | ✅ |
 | File attachments (S3 / remote storage) | ✅ | ❌ |
+| Attachment image preview in iOS app | ❌ | ❌ |
 | Base64-encoded binary body | ✅ | ✅ |
 
 #### Authentication & authorization
