@@ -286,7 +286,7 @@ curl -H "Delay: 30m" -d "Reminder" ntfy.example.com/mytopic
 | `X-Delay` | `Delay`, `X-At`, `At`, `X-In`, `In` | Scheduled delivery time |
 | `Content-Type` | | `text/markdown` sets Markdown rendering; non-text type triggers attachment upload |
 
-> **iOS note:** The ntfy iOS app (as of v1.6) does not render attachment image previews in notifications or in-app. The Android app shows a download link but not an inline preview. Attachments are served correctly by ntfy-rs; image display is an app-side feature that has not shipped yet.
+> **iOS note:** The ntfy iOS app (as of v1.6) does not render attachment image previews in notifications or in-app. The Android app shows a download link but not an inline preview. Attachments are served correctly by ntfy-rs; image display is an app-side feature that has not shipped yet. Action buttons (`X-Actions`) render in-app on both platforms but not on the iOS lock screen or Notification Center — only Android shows them in notifications.
 
 ## Subscribing
 
