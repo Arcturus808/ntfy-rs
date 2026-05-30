@@ -9,8 +9,15 @@ fn main() {
     let out_dir = std::env::args().nth(2).unwrap_or_else(|| "assets".to_string());
 
     let svg_data = fs::read(&svg_path).expect("failed to read SVG");
-    let tree = resvg::usvg::Tree::from_data(&svg_data, &resvg::usvg::Options::default())
-        .expect("failed to parse SVG");
+
+    // Load system fonts so <text> elements render correctly (e.g. Arial on Windows).
+    let mut fontdb = resvg::usvg::fontdb::Database::new();
+    fontdb.load_system_fonts();
+    let opts = resvg::usvg::Options {
+        fontdb: std::sync::Arc::new(fontdb),
+        ..Default::default()
+    };
+    let tree = resvg::usvg::Tree::from_data(&svg_data, &opts).expect("failed to parse SVG");
 
     let sizes = [16, 32, 48, 180, 256];
     let mut ico_pngs: Vec<(u32, Vec<u8>)> = Vec::new();
