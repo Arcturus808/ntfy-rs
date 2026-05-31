@@ -283,3 +283,156 @@ fn extract_ip(req: &Request) -> IpAddr {
     // which is wired in Phase 7 (TLS / production hardening).
     "127.0.0.1".parse().unwrap()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::DefaultAccess;
+    use std::net::IpAddr;
+
+    fn localhost() -> IpAddr {
+        "127.0.0.1".parse().unwrap()
+    }
+
+    // ── Role ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_role_from_str() {
+        assert_eq!(Role::from_str("admin"), Role::Admin);
+        assert_eq!(Role::from_str("user"), Role::User);
+        assert_eq!(Role::from_str("anything"), Role::User);
+    }
+
+    #[test]
+    fn test_role_as_str() {
+        assert_eq!(Role::Admin.as_str(), "admin");
+        assert_eq!(Role::User.as_str(), "user");
+    }
+
+    #[test]
+    fn test_role_is_admin() {
+        assert!(Role::Admin.is_admin());
+        assert!(!Role::User.is_admin());
+    }
+
+    // ── AuthUser ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_auth_user_anonymous() {
+        let user = AuthUser::anonymous(localhost());
+        assert!(user.user.is_none());
+        assert!(!user.is_admin());
+        assert!(user.user_id().is_none());
+    }
+
+    #[test]
+    fn test_auth_user_authenticated_admin() {
+        let user = AuthUser::authenticated(
+            User {
+                id: "abc".to_string(),
+                username: "admin".to_string(),
+                hash: String::new(),
+                role: Role::Admin,
+            },
+            localhost(),
+        );
+        assert!(user.is_admin());
+        assert_eq!(user.user_id(), Some("abc"));
+    }
+
+    #[test]
+    fn test_auth_user_authenticated_non_admin() {
+        let user = AuthUser::authenticated(
+            User {
+                id: "xyz".to_string(),
+                username: "bob".to_string(),
+                hash: String::new(),
+                role: Role::User,
+            },
+            localhost(),
+        );
+        assert!(!user.is_admin());
+        assert_eq!(user.user_id(), Some("xyz"));
+    }
+
+    // ── authorize (unit-level) ───────────────────────────────────────────
+
+    fn make_config(auth_enabled: bool, default_access: DefaultAccess) -> Config {
+        Config {
+            auth_enabled,
+            default_access,
+            ..crate::config::Config::resolve(
+                crate::config::FileConfig::default(),
+                &crate::config::ServeArgs {
+                    config: std::path::PathBuf::from("server.toml"),
+                    listen_http: None,
+                    cache_file: None,
+                    log_level: "info".to_string(),
+                    base_url: None,
+                    listen_https: None,
+                    cert_file: None,
+                    key_file: None,
+                    listen_unix: None,
+                    upstream_base_url: None,
+                    upstream_access_token: None,
+                },
+            )
+        }
+    }
+
+    fn test_db() -> DbPool {
+        crate::db::open(None).unwrap()
+    }
+
+    #[test]
+    fn test_authorize_auth_disabled_always_allowed() {
+        let config = make_config(false, DefaultAccess::DenyAll);
+        let user = AuthUser::anonymous(localhost());
+        let db = test_db();
+        assert!(authorize(&db, &config, &user, "test", Permission::Read).is_ok());
+        assert!(authorize(&db, &config, &user, "test", Permission::Write).is_ok());
+    }
+
+    #[test]
+    fn test_authorize_admin_always_allowed() {
+        let config = make_config(true, DefaultAccess::DenyAll);
+        let admin = AuthUser::authenticated(
+            User {
+                id: "1".to_string(),
+                username: "admin".to_string(),
+                hash: String::new(),
+                role: Role::Admin,
+            },
+            localhost(),
+        );
+        let db = test_db();
+        assert!(authorize(&db, &config, &admin, "test", Permission::Write).is_ok());
+    }
+
+    #[test]
+    fn test_authorize_anonymous_read_write() {
+        let config = make_config(true, DefaultAccess::ReadWrite);
+        let anon = AuthUser::anonymous(localhost());
+        let db = test_db();
+        assert!(authorize(&db, &config, &anon, "test", Permission::Read).is_ok());
+        assert!(authorize(&db, &config, &anon, "test", Permission::Write).is_ok());
+    }
+
+    #[test]
+    fn test_authorize_anonymous_read_only() {
+        let config = make_config(true, DefaultAccess::ReadOnly);
+        let anon = AuthUser::anonymous(localhost());
+        let db = test_db();
+        assert!(authorize(&db, &config, &anon, "test", Permission::Read).is_ok());
+        assert!(authorize(&db, &config, &anon, "test", Permission::Write).is_err());
+    }
+
+    #[test]
+    fn test_authorize_anonymous_deny_all() {
+        let config = make_config(true, DefaultAccess::DenyAll);
+        let anon = AuthUser::anonymous(localhost());
+        let db = test_db();
+        assert!(authorize(&db, &config, &anon, "test", Permission::Read).is_err());
+        assert!(authorize(&db, &config, &anon, "test", Permission::Write).is_err());
+    }
+}
