@@ -1,5 +1,9 @@
 <div align="center">
   <img src="assets/ntfy-rs_logo.png" alt="ntfy-rs logo" width="256">
+
+  [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20GPL--2.0-blue.svg)](LICENSE)
+  [![CI](https://github.com/Arcturus808/ntfy-rs/actions/workflows/release.yml/badge.svg)](https://github.com/Arcturus808/ntfy-rs/actions/workflows/release.yml)
+  [![Release](https://img.shields.io/github/v/tag/Arcturus808/ntfy-rs?label=release&color=green)](https://github.com/Arcturus808/ntfy-rs/releases)
 </div>
 
 # ntfy-rs
