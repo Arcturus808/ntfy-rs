@@ -214,9 +214,11 @@ async fn run_server(
     {
         Ok(handle) => handle,
         Err(_) => {
-            let (_recorder, handle) =
-                metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
-            handle
+            // Recorder already installed globally; build a local recorder
+            // and use its handle for rendering scrape output.
+            metrics_exporter_prometheus::PrometheusBuilder::new()
+                .build_recorder()
+                .handle()
         }
     };
 
