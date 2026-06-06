@@ -1,10 +1,14 @@
+#[cfg(feature = "auth")]
 pub mod account;
+#[cfg(feature = "auth")]
 pub mod admin;
 pub mod file;
 pub mod health;
 pub mod matrix;
+#[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod publish;
 pub mod subscribe;
+#[cfg(feature = "webpush")]
 pub mod webpush;
 pub mod ws;

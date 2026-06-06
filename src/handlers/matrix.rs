@@ -129,6 +129,7 @@ pub async fn notify(
     }
 
     // Authorization — Matrix gateway publishes as anonymous; respects default_access.
+    #[cfg(feature = "auth")]
     crate::auth::authorize(
         state.effective_auth_db(),
         &state.config,

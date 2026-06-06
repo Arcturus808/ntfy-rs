@@ -1,6 +1,6 @@
 [package]
 name = "ntfy-rs"
-version = "0.1.0-beta.4"
+version = "0.1.0-beta.5"
 edition = "2021"
 description = "Lightweight pub/sub notification server"
 license = "Apache-2.0 OR GPL-2.0-only"
@@ -12,6 +12,30 @@ path = "src/lib.rs"
 [[bin]]
 name = "ntfy-rs"
 path = "src/main.rs"
+
+[features]
+default = ["email", "metrics", "tls", "webpush", "auth", "unix-socket", "config-file"]
+
+# Outbound email notifications via SMTP
+email = ["dep:lettre"]
+
+# Prometheus metrics exposition
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+
+# HTTPS/TLS listener (rustls + aws-lc-rs, no OpenSSL)
+tls = ["dep:axum-server", "dep:rustls"]
+
+# Web Push notifications (VAPID + RFC 8188 AES-128-GCM)
+webpush = ["dep:p256", "dep:aes-gcm", "dep:hkdf"]
+
+# Authentication: Basic, Bearer token, ACL per topic
+auth = ["dep:bcrypt"]
+
+# Unix domain socket listener
+unix-socket = ["dep:hyper", "dep:hyper-util"]
+
+# TOML config file + CLI arg parsing (clap)
+config-file = ["dep:config", "dep:clap"]
 
 [dependencies]
 # Async runtime
@@ -31,11 +55,11 @@ r2d2_sqlite = "0.24"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Config: TOML file + env override
-config = { version = "0.14", default-features = false, features = ["toml"] }
+# Config: TOML file + env override (optional — only needed with config-file feature)
+config = { version = "0.14", default-features = false, features = ["toml"], optional = true }
 
-# CLI
-clap = { version = "4", features = ["derive", "env"] }
+# CLI (optional — only needed with config-file feature)
+clap = { version = "4", features = ["derive", "env"], optional = true }
 
 # Rate limiting (token bucket)
 governor = { version = "0.6", features = ["dashmap"] }
@@ -43,8 +67,8 @@ governor = { version = "0.6", features = ["dashmap"] }
 # Concurrent hash map (visitor + topic maps)
 dashmap = "5"
 
-# Password hashing
-bcrypt = "0.15"
+# Password hashing (optional — only needed with auth feature)
+bcrypt = { version = "0.15", optional = true }
 
 # Logging
 tracing = "0.1"
@@ -64,25 +88,25 @@ reqwest = { version = "0.13.3", features = ["json"] }
 sha2 = "0.11.0"
 once_cell = "1"
 
-# Web Push: VAPID (RFC 8292) + ECE/aes128gcm (RFC 8188/8291) — pure Rust, no OpenSSL
-p256 = { version = "0.13", features = ["ecdh", "ecdsa", "pkcs8"] }
-aes-gcm = "0.10"
-hkdf = "0.13"
+# Web Push: VAPID (RFC 8292) + ECE/aes128gcm (RFC 8188/8291) — pure Rust, no OpenSSL (optional)
+p256 = { version = "0.13", features = ["ecdh", "ecdsa", "pkcs8"], optional = true }
+aes-gcm = { version = "0.10", optional = true }
+hkdf = { version = "0.13", optional = true }
 
-# TLS
-axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
-rustls = { version = "0.23", features = ["aws_lc_rs"] }
+# TLS (optional — only needed with tls feature)
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"], optional = true }
+rustls = { version = "0.23", features = ["aws_lc_rs"], optional = true }
 
-# Metrics (Prometheus exposition format)
-metrics = "0.24"
-metrics-exporter-prometheus = { version = "0.16", default-features = false }
+# Metrics (Prometheus exposition format) (optional)
+metrics = { version = "0.24", optional = true }
+metrics-exporter-prometheus = { version = "0.16", default-features = false, optional = true }
 
-# Email notifications (outbound SMTP)
-lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls", "aws-lc-rs", "rustls-platform-verifier", "builder", "tokio1"] }
+# Email notifications (outbound SMTP) (optional)
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls", "aws-lc-rs", "rustls-platform-verifier", "builder", "tokio1"], optional = true }
 
-# Unix socket serving (hyper is already a transitive dep via axum)
-hyper = { version = "1", features = ["http1", "server"] }
-hyper-util = { version = "0.1", features = ["tokio"] }
+# Unix socket serving (optional)
+hyper = { version = "1", features = ["http1", "server"], optional = true }
+hyper-util = { version = "0.1", features = ["tokio"], optional = true }
 
 [build-dependencies]
 winres = "0.1"

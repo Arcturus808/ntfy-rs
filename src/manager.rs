@@ -83,20 +83,27 @@ pub async fn run(state: AppState) {
         }
 
         // Update Prometheus gauges.
-        let topic_count = state.topics.topic_count();
-        let sub_count   = state.topics.subscriber_count();
-        metrics::gauge!("ntfy_topics").set(topic_count as f64);
+        #[cfg(feature = "metrics")]
+        {
+            let topic_count = state.topics.topic_count();
+            metrics::gauge!("ntfy_topics").set(topic_count as f64);
 
-        // Cached message count — best-effort; ignore errors.
-        if let Ok(conn) = state.db.get() {
-            if let Ok(n) = cache::count(&conn) {
-                metrics::gauge!("ntfy_messages_cached").set(n as f64);
+            // Cached message count — best-effort; ignore errors.
+            if let Ok(conn) = state.db.get() {
+                if let Ok(n) = cache::count(&conn) {
+                    metrics::gauge!("ntfy_messages_cached").set(n as f64);
+                }
             }
         }
 
+        #[cfg(not(feature = "metrics"))]
+        {
+            let _ = state; // suppress unused variable warning
+        }
+
         tracing::debug!(
-            topics = topic_count,
-            subs   = sub_count,
+            topics = state.topics.topic_count(),
+            subs   = state.topics.subscriber_count(),
             "manager tick"
         );
     }

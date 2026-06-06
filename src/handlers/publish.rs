@@ -1,20 +1,25 @@
 use crate::{
-    auth::{authorize, AuthUser, Permission},
     db::{self, cache},
-    email,
     error::AppError,
     message::{generate_id, parse_topics, valid_topic, Action, Attachment, Message},
     state::AppState,
     upstream,
-    webpush,
 };
+#[cfg(feature = "auth")]
+use crate::auth::{authorize, AuthUser, Permission};
+#[cfg(feature = "email")]
+use crate::email;
+#[cfg(feature = "webpush")]
+use crate::webpush;
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    Extension, Json,
+    Json,
 };
+#[cfg(feature = "auth")]
+use axum::Extension;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -22,7 +27,7 @@ use std::sync::Arc;
 pub async fn publish(
     State(state): State<AppState>,
     Path(topic): Path<String>,
-    Extension(auth_user): Extension<AuthUser>,
+    #[cfg(feature = "auth")] Extension(auth_user): Extension<AuthUser>,
     Query(params): Query<HashMap<String, String>>,
     headers: HeaderMap,
     body: Bytes,
@@ -47,12 +52,16 @@ pub async fn publish(
     }
 
     // Rate limiting
+    #[cfg(feature = "auth")]
     let visitor = state.visitors.get_or_create(auth_user.ip);
+    #[cfg(not(feature = "auth"))]
+    let visitor = state.visitors.get_or_create("127.0.0.1".parse().unwrap());
     if !visitor.request_allowed() {
         return Err(AppError::TooManyRequests);
     }
 
     // Authorization
+    #[cfg(feature = "auth")]
     authorize(
         state.effective_auth_db(),
         &state.config,
@@ -231,6 +240,7 @@ pub async fn publish(
         }
 
         // Outbound email notification — fire-and-forget.
+        #[cfg(feature = "email")]
         if let Some(smtp) = state.config.smtp.clone() {
             let msg2 = msg.clone();
             tokio::spawn(async move {
@@ -239,6 +249,7 @@ pub async fn publish(
         }
 
         // Web push notifications — fire-and-forget.
+        #[cfg(feature = "webpush")]
         if let Some(ref vapid) = state.vapid {
             let vapid2 = Arc::clone(vapid);
             let db2    = state.db.clone();
@@ -252,6 +263,7 @@ pub async fn publish(
     }
 
     tracing::info!(topic = %topic, id = %msg.id, delayed = is_delayed, "published");
+    #[cfg(feature = "metrics")]
     metrics::counter!("ntfy_messages_published_total").increment(1);
 
     Ok((StatusCode::OK, Json(msg)))
@@ -262,7 +274,7 @@ pub async fn publish(
 pub async fn publish_multi(
     State(state): State<AppState>,
     Path(topics_raw): Path<String>,
-    Extension(auth_user): Extension<AuthUser>,
+    #[cfg(feature = "auth")] Extension(auth_user): Extension<AuthUser>,
     Query(params): Query<HashMap<String, String>>,
     headers: HeaderMap,
     body: Bytes,
@@ -272,6 +284,7 @@ pub async fn publish_multi(
         publish(
             State(state.clone()),
             Path(topic.clone()),
+            #[cfg(feature = "auth")]
             Extension(auth_user.clone()),
             Query(params.clone()),
             headers.clone(),

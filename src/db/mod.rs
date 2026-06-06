@@ -1,7 +1,9 @@
 pub mod attachments;
 pub mod cache;
 pub mod schema;
+#[cfg(feature = "auth")]
 pub mod users;
+#[cfg(feature = "webpush")]
 pub mod webpush;
 
 use r2d2::Pool;

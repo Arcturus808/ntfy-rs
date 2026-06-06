@@ -1,6 +1,8 @@
+#[cfg(feature = "config-file")]
 use clap::Parser;
 use tracing_subscriber::{fmt, EnvFilter};
 
+#[cfg(feature = "config-file")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = ntfy_rs::config::Cli::parse();
@@ -18,11 +20,15 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(
         listen_http  = %cfg.listen_http,
-        listen_https = ?cfg.listen_https,
-        listen_unix  = ?cfg.listen_unix,
         auth         = cfg.auth_enabled,
         "starting ntfy-rs"
     );
+
+    #[cfg(feature = "tls")]
+    tracing::info!(listen_https = ?cfg.listen_https, "tls configured");
+
+    #[cfg(feature = "unix-socket")]
+    tracing::info!(listen_unix = ?cfg.listen_unix, "unix socket configured");
 
     let handle = ntfy_rs::start_async(cfg).await?;
 
@@ -32,4 +38,11 @@ async fn main() -> anyhow::Result<()> {
     handle.shutdown();
 
     Ok(())
+}
+
+#[cfg(not(feature = "config-file"))]
+fn main() {
+    eprintln!("ntfy-rs: the standalone binary requires the 'config-file' feature. \
+               Use the library API (ntfy_rs::start / start_async) to embed the server.");
+    std::process::exit(1);
 }

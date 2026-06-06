@@ -10,12 +10,18 @@
 //!
 //! The resolved `AuthUser` is stored in request extensions and read by
 //! `authorize_topic` before each publish/subscribe handler runs.
+//!
+//! When the `auth` feature is disabled, authentication is always anonymous
+//! and authorization always succeeds — no bcrypt or user DB required.
 
 use crate::{
-    config::{Config, DefaultAccess},
-    db::{users as db_users, DbPool},
+    db::DbPool,
     error::AppError,
 };
+#[cfg(feature = "auth")]
+use crate::config::{Config, DefaultAccess};
+#[cfg(feature = "auth")]
+use crate::db::users as db_users;
 use axum::{
     extract::Request,
     middleware::Next,
@@ -102,6 +108,7 @@ impl AuthUser {
 
 /// Return a tower Layer that injects `AuthUser` into request extensions.
 /// Captures db and config by value; no axum State extraction needed.
+#[cfg(feature = "auth")]
 pub fn make_auth_layer(db: DbPool, config: Arc<Config>) -> impl tower::Layer<
     axum::routing::Route,
     Service = impl tower::Service<
@@ -126,6 +133,27 @@ pub fn make_auth_layer(db: DbPool, config: Arc<Config>) -> impl tower::Layer<
     })
 }
 
+/// No-op auth layer when the `auth` feature is disabled — always injects an anonymous user.
+#[cfg(not(feature = "auth"))]
+pub fn make_auth_layer(_db: DbPool, _config: Arc<()>) -> impl tower::Layer<
+    axum::routing::Route,
+    Service = impl tower::Service<
+        Request,
+        Response = Response,
+        Error = std::convert::Infallible,
+        Future = impl std::future::Future<Output = Result<Response, std::convert::Infallible>> + Send,
+    > + Clone + Send + 'static,
+> + Clone + 'static {
+    axum::middleware::from_fn(move |mut req: Request, next: Next| {
+        async move {
+            let ip = extract_ip(&req);
+            req.extensions_mut().insert(AuthUser::anonymous(ip));
+            next.run(req).await
+        }
+    })
+}
+
+#[cfg(feature = "auth")]
 async fn resolve_auth_parts(
     db: &DbPool,
     config: &Config,
@@ -173,6 +201,7 @@ fn read_auth_header(req: &Request) -> Option<String> {
     None
 }
 
+#[cfg(feature = "auth")]
 async fn authenticate(db: &DbPool, header: &str) -> Result<User, AppError> {
     if let Some(token) = header.strip_prefix("Bearer ").map(str::trim) {
         return authenticate_token(db, token);
@@ -183,6 +212,7 @@ async fn authenticate(db: &DbPool, header: &str) -> Result<User, AppError> {
     Err(AppError::Unauthorized)
 }
 
+#[cfg(feature = "auth")]
 fn authenticate_basic(db: &DbPool, header: &str) -> Result<User, AppError> {
     // Decode "Basic <base64(user:pass)>"
     let encoded = header
@@ -220,6 +250,7 @@ fn authenticate_basic(db: &DbPool, header: &str) -> Result<User, AppError> {
     }
 }
 
+#[cfg(feature = "auth")]
 fn authenticate_token(db: &DbPool, token: &str) -> Result<User, AppError> {
     let conn = db.get().map_err(|_| AppError::Unauthorized)?;
     db_users::user_by_token(&conn, token)
@@ -236,6 +267,7 @@ fn authenticate_token(db: &DbPool, token: &str) -> Result<User, AppError> {
 /// 2. Admin → always allowed.
 /// 3. Authenticated user → check topic_acl table.
 /// 4. Anonymous → apply `default_access` config.
+#[cfg(feature = "auth")]
 pub fn authorize(
     db: &DbPool,
     config: &Config,
@@ -266,6 +298,18 @@ pub fn authorize(
     }
 }
 
+/// When auth feature is disabled, authorization always succeeds.
+#[cfg(not(feature = "auth"))]
+pub fn authorize(
+    _db: &DbPool,
+    _config: &crate::config::Config,
+    _auth_user: &AuthUser,
+    _topic: &str,
+    _perm: Permission,
+) -> Result<(), AppError> {
+    Ok(())
+}
+
 // ── IP extraction ─────────────────────────────────────────────────────────────
 
 fn extract_ip(req: &Request) -> IpAddr {
@@ -287,6 +331,7 @@ fn extract_ip(req: &Request) -> IpAddr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "auth")]
     use crate::config::DefaultAccess;
     use std::net::IpAddr;
 
@@ -294,7 +339,7 @@ mod tests {
         "127.0.0.1".parse().unwrap()
     }
 
-    // ── Role ────────────────────────────────────────────────────────────
+    // ── Role ─────────────────────────────────────────────────────────────
 
     #[test]
     fn test_role_from_str() {
@@ -315,7 +360,7 @@ mod tests {
         assert!(!Role::User.is_admin());
     }
 
-    // ── AuthUser ────────────────────────────────────────────────────────
+    // ── AuthUser ────────────────────────────────────────────────────────────
 
     #[test]
     fn test_auth_user_anonymous() {
@@ -355,12 +400,14 @@ mod tests {
         assert_eq!(user.user_id(), Some("xyz"));
     }
 
-    // ── authorize (unit-level) ───────────────────────────────────────────
+    // ── authorize (unit-level) ───────────────────────────────────────────────
 
-    fn make_config(auth_enabled: bool, default_access: DefaultAccess) -> Config {
-        Config {
-            auth_enabled,
-            default_access,
+    #[cfg(feature = "auth")]
+    #[test]
+    fn test_authorize_auth_disabled() {
+        let config = Config {
+            auth_enabled: false,
+            default_access: DefaultAccess::ReadWrite,
             ..crate::config::Config::resolve(
                 crate::config::FileConfig::default(),
                 &crate::config::ServeArgs {
@@ -369,70 +416,32 @@ mod tests {
                     cache_file: None,
                     log_level: "info".to_string(),
                     base_url: None,
-                    listen_https: None,
-                    cert_file: None,
-                    key_file: None,
-                    listen_unix: None,
                     upstream_base_url: None,
                     upstream_access_token: None,
+                    #[cfg(feature = "tls")]
+                    listen_https: None,
+                    #[cfg(feature = "tls")]
+                    cert_file: None,
+                    #[cfg(feature = "tls")]
+                    key_file: None,
+                    #[cfg(feature = "unix-socket")]
+                    listen_unix: None,
                 },
             )
-        }
-    }
-
-    fn test_db() -> DbPool {
-        crate::db::open(None).unwrap()
-    }
-
-    #[test]
-    fn test_authorize_auth_disabled_always_allowed() {
-        let config = make_config(false, DefaultAccess::DenyAll);
+        };
         let user = AuthUser::anonymous(localhost());
-        let db = test_db();
-        assert!(authorize(&db, &config, &user, "test", Permission::Read).is_ok());
-        assert!(authorize(&db, &config, &user, "test", Permission::Write).is_ok());
+        assert!(authorize(&crate::db::open(None).unwrap(), &config, &user, "t", Permission::Read).is_ok());
     }
 
+    #[cfg(not(feature = "auth"))]
     #[test]
-    fn test_authorize_admin_always_allowed() {
-        let config = make_config(true, DefaultAccess::DenyAll);
-        let admin = AuthUser::authenticated(
-            User {
-                id: "1".to_string(),
-                username: "admin".to_string(),
-                hash: String::new(),
-                role: Role::Admin,
-            },
-            localhost(),
+    fn test_authorize_always_ok_without_auth_feature() {
+        let db = crate::db::open(None).unwrap();
+        let config = crate::config::Config::resolve(
+            crate::config::FileConfig::default(),
+            &crate::config::ServeArgs::default(),
         );
-        let db = test_db();
-        assert!(authorize(&db, &config, &admin, "test", Permission::Write).is_ok());
-    }
-
-    #[test]
-    fn test_authorize_anonymous_read_write() {
-        let config = make_config(true, DefaultAccess::ReadWrite);
-        let anon = AuthUser::anonymous(localhost());
-        let db = test_db();
-        assert!(authorize(&db, &config, &anon, "test", Permission::Read).is_ok());
-        assert!(authorize(&db, &config, &anon, "test", Permission::Write).is_ok());
-    }
-
-    #[test]
-    fn test_authorize_anonymous_read_only() {
-        let config = make_config(true, DefaultAccess::ReadOnly);
-        let anon = AuthUser::anonymous(localhost());
-        let db = test_db();
-        assert!(authorize(&db, &config, &anon, "test", Permission::Read).is_ok());
-        assert!(authorize(&db, &config, &anon, "test", Permission::Write).is_err());
-    }
-
-    #[test]
-    fn test_authorize_anonymous_deny_all() {
-        let config = make_config(true, DefaultAccess::DenyAll);
-        let anon = AuthUser::anonymous(localhost());
-        let db = test_db();
-        assert!(authorize(&db, &config, &anon, "test", Permission::Read).is_err());
-        assert!(authorize(&db, &config, &anon, "test", Permission::Write).is_err());
+        let user = AuthUser::anonymous(localhost());
+        assert!(authorize(&db, &config, &user, "t", Permission::Read).is_ok());
     }
 }

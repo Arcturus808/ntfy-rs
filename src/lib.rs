@@ -1,6 +1,7 @@
 mod auth;
 pub mod config;
 mod db;
+#[cfg(feature = "email")]
 mod email;
 mod emoji;
 mod error;
@@ -12,6 +13,7 @@ mod state;
 mod topic;
 mod upstream;
 mod visitor;
+#[cfg(feature = "webpush")]
 mod webpush;
 
 pub use config::{Config, FileConfig, ServeArgs};
@@ -179,20 +181,23 @@ async fn run_server(
     started_tx: std::sync::mpsc::Sender<anyhow::Result<u16>>,
 ) -> anyhow::Result<()> {
     // Install the aws-lc-rs crypto provider for rustls.
+    #[cfg(feature = "tls")]
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     // Open message cache DB.
     let db = db::open(config.cache_file.as_ref())?;
 
     // Open auth DB (separate file when auth is enabled).
+    #[cfg(feature = "auth")]
     let auth_db = if config.auth_enabled {
         Some(db::open(config.auth_file.as_ref())?)
     } else {
         None
     };
-
-    // Initialise VAPID keys (load from DB or generate new). Failure is
+    #[cfg(not(feature = "auth"))]
+    let auth_db: Option<crate::db::DbPool> = None;
     // non-fatal: web push is simply disabled for this run.
+    #[cfg(feature = "webpush")]
     let vapid = match webpush::load_or_generate(&db) {
         Ok(v) => {
             tracing::info!(public_key = %v.public_key_b64, "VAPID key loaded");
@@ -203,12 +208,15 @@ async fn run_server(
             None
         }
     };
+    #[cfg(not(feature = "webpush"))]
+    let vapid: Option<std::sync::Arc<()>> = None;
 
     let state = AppState::new(config.clone(), db, auth_db, vapid);
 
     // Install Prometheus metrics recorder.
     // Non-fatal on restart: the recorder is a process-global singleton
     // that can only be installed once, so a second call returns an error.
+    #[cfg(feature = "metrics")]
     let metrics_handle = match metrics_exporter_prometheus::PrometheusBuilder::new()
         .install_recorder()
     {
@@ -228,7 +236,10 @@ async fn run_server(
         tokio::spawn(async move { manager::run(s).await });
     }
 
+    #[cfg(feature = "metrics")]
     let app = router::build(state, metrics_handle);
+    #[cfg(not(feature = "metrics"))]
+    let app = router::build(state);
 
     // ── HTTP listener ─────────────────────────────────────────────────────
     let http_addr: SocketAddr = normalise_addr(&config.listen_http)?;
@@ -256,6 +267,7 @@ async fn run_select(
     shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
     // ── HTTPS listener (optional) ─────────────────────────────────────────
+    #[cfg(feature = "tls")]
     let tls_server = match (&config.listen_https, &config.cert_file, &config.key_file) {
         (Some(addr), Some(cert), Some(key)) => {
             let tls_cfg = axum_server::tls_rustls::RustlsConfig::from_pem_file(cert, key)
@@ -272,6 +284,7 @@ async fn run_select(
         _ => None,
     };
 
+    #[cfg(feature = "unix-socket")]
     #[allow(unused_variables)]
     let unix_path = config.listen_unix.clone();
 
@@ -283,6 +296,7 @@ async fn run_select(
             res?;
         }
         res = async {
+            #[cfg(feature = "tls")]
             if let Some((tls_addr, tls_cfg)) = tls_server {
                 axum_server::bind_rustls(tls_addr, tls_cfg)
                     .serve(app.clone().into_make_service())
@@ -290,11 +304,13 @@ async fn run_select(
             } else {
                 std::future::pending::<Result<(), std::io::Error>>().await
             }
+            #[cfg(not(feature = "tls"))]
+            std::future::pending::<Result<(), std::io::Error>>().await
         } => {
             res?;
         }
         res = async {
-            #[cfg(unix)]
+            #[cfg(all(unix, feature = "unix-socket"))]
             if let Some(path) = unix_path {
                 return serve_unix(path, app.clone()).await;
             }
@@ -317,7 +333,7 @@ fn normalise_addr(s: &str) -> anyhow::Result<SocketAddr> {
 }
 
 /// Serve an axum Router over a Unix domain socket.
-#[cfg(unix)]
+#[cfg(all(unix, feature = "unix-socket"))]
 async fn serve_unix(path: std::path::PathBuf, app: axum::Router) -> anyhow::Result<()> {
     use hyper::server::conn::http1;
     use hyper_util::rt::TokioIo;

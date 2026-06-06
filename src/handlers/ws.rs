@@ -1,9 +1,11 @@
 use crate::{
-    auth::{authorize, AuthUser, Permission},
+    auth::{AuthUser, Permission},
     error::AppError,
     message::{parse_topics, valid_topic, Message},
     state::AppState,
 };
+#[cfg(feature = "auth")]
+use crate::auth::authorize;
 use super::subscribe::{resolve_since, SubscribeParams};
 use axum::{
     extract::{
@@ -44,6 +46,7 @@ pub async fn subscribe_ws(
         return Err(AppError::TooManyRequests);
     }
 
+    #[cfg(feature = "auth")]
     authorize(
         state.effective_auth_db(),
         &state.config,
@@ -57,6 +60,7 @@ pub async fn subscribe_ws(
     let t = state.topics.get_or_create(&topic);
     let rx = t.tx.subscribe();
     visitor.increment_subscriptions();
+    #[cfg(feature = "metrics")]
     metrics::gauge!("ntfy_subscribers").increment(1.0);
 
     let keepalive_secs = state.config.keepalive_secs;
@@ -83,6 +87,7 @@ pub async fn subscribe_ws_multi(
     }
 
     // Authorize read on every requested topic before upgrading.
+    #[cfg(feature = "auth")]
     for topic in &topics {
         authorize(
             state.effective_auth_db(),
@@ -108,6 +113,7 @@ pub async fn subscribe_ws_multi(
     cached.sort_by_key(|m| m.time);
 
     visitor.increment_subscriptions();
+    #[cfg(feature = "metrics")]
     metrics::gauge!("ntfy_subscribers").increment(1.0);
 
     let keepalive_secs = state.config.keepalive_secs;

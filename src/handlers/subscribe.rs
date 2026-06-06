@@ -1,10 +1,50 @@
 use crate::{
-    auth::{authorize, AuthUser, Permission},
+    auth::{AuthUser, Permission},
     db::cache,
     error::AppError,
     message::{parse_topics, valid_topic, Message},
     state::AppState,
 };
+#[cfg(feature = "auth")]
+use crate::auth::authorize;
+
+/// Authorize a read operation — no-op when auth feature is disabled.
+#[cfg(feature = "auth")]
+macro_rules! auth_check {
+    ($state:expr, $auth_user:expr, $topic:expr) => {
+        authorize(
+            $state.effective_auth_db(),
+            &$state.config,
+            $auth_user,
+            $topic,
+            Permission::Read,
+        )?
+    };
+}
+#[cfg(not(feature = "auth"))]
+macro_rules! auth_check {
+    ($state:expr, $auth_user:expr, $topic:expr) => {};
+}
+
+/// Increment subscriber gauge — no-op when metrics feature is disabled.
+#[cfg(feature = "metrics")]
+macro_rules! sub_gauge_inc {
+    () => { metrics::gauge!("ntfy_subscribers").increment(1.0); };
+}
+#[cfg(not(feature = "metrics"))]
+macro_rules! sub_gauge_inc {
+    () => {};
+}
+
+/// Decrement subscriber gauge — no-op when metrics feature is disabled.
+#[cfg(feature = "metrics")]
+macro_rules! sub_gauge_dec {
+    () => { metrics::gauge!("ntfy_subscribers").decrement(1.0); };
+}
+#[cfg(not(feature = "metrics"))]
+macro_rules! sub_gauge_dec {
+    () => {};
+}
 use axum::{
     body::Body,
     extract::{Path, Query, State},
@@ -113,13 +153,7 @@ pub async fn subscribe_sse(
     }
 
     // Authorization
-    authorize(
-        state.effective_auth_db(),
-        &state.config,
-        &auth_user,
-        &topic,
-        Permission::Read,
-    )?;
+    auth_check!(state, &auth_user, &topic);
 
     if params.is_poll() {
         let msgs = resolve_since(&state, &topic, &params)?;
@@ -135,7 +169,7 @@ pub async fn subscribe_sse(
     let t = state.topics.get_or_create(&topic);
     let rx = t.tx.subscribe();
     visitor.increment_subscriptions();
-    metrics::gauge!("ntfy_subscribers").increment(1.0);
+    sub_gauge_inc!();
 
     // Decrement subscription count when the stream ends.
     // We wrap the stream in a guard that decrements on drop.
@@ -201,7 +235,7 @@ struct SubscriptionGuard(Arc<crate::visitor::Visitor>);
 impl Drop for SubscriptionGuard {
     fn drop(&mut self) {
         self.0.decrement_subscriptions();
-        metrics::gauge!("ntfy_subscribers").decrement(1.0);
+        sub_gauge_dec!();
     }
 }
 
@@ -246,13 +280,7 @@ pub async fn subscribe_ndjson(
         return Err(AppError::TooManyRequests);
     }
 
-    authorize(
-        state.effective_auth_db(),
-        &state.config,
-        &auth_user,
-        &topic,
-        Permission::Read,
-    )?;
+    auth_check!(state, &auth_user, &topic);
 
     let cached = resolve_since(&state, &topic, &params)?;
 
@@ -276,7 +304,7 @@ pub async fn subscribe_ndjson(
     let t = state.topics.get_or_create(&topic);
     let rx = t.tx.subscribe();
     visitor.increment_subscriptions();
-    metrics::gauge!("ntfy_subscribers").increment(1.0);
+    sub_gauge_inc!();
 
     let visitor_clone = Arc::clone(&visitor);
     let stream = build_ndjson_stream(topic.clone(), cached, rx, visitor_clone);
@@ -347,13 +375,7 @@ pub async fn subscribe_multi_sse(
     }
 
     for topic in &topics {
-        authorize(
-            state.effective_auth_db(),
-            &state.config,
-            &auth_user,
-            topic,
-            Permission::Read,
-        )?;
+        auth_check!(state, &auth_user, topic);
     }
 
     let mut cached: Vec<Message> = Vec::new();
@@ -368,7 +390,7 @@ pub async fn subscribe_multi_sse(
 
     cached.sort_by_key(|m| m.time);
     visitor.increment_subscriptions();
-    metrics::gauge!("ntfy_subscribers").increment(1.0);
+    sub_gauge_inc!();
 
     let first_topic = topics[0].clone();
     let keepalive_secs = state.config.keepalive_secs;
@@ -452,13 +474,7 @@ pub async fn subscribe_multi_ndjson(
     }
 
     for topic in &topics {
-        authorize(
-            state.effective_auth_db(),
-            &state.config,
-            &auth_user,
-            topic,
-            Permission::Read,
-        )?;
+        auth_check!(state, &auth_user, topic);
     }
 
     let mut cached: Vec<Message> = Vec::new();
@@ -489,7 +505,7 @@ pub async fn subscribe_multi_ndjson(
     }
 
     visitor.increment_subscriptions();
-    metrics::gauge!("ntfy_subscribers").increment(1.0);
+    sub_gauge_inc!();
     let first_topic = topics[0].clone();
     let visitor_clone = Arc::clone(&visitor);
 

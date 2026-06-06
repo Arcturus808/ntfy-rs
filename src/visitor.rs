@@ -126,6 +126,7 @@ pub struct SubscriptionGuard(pub Arc<Visitor>);
 impl Drop for SubscriptionGuard {
     fn drop(&mut self) {
         self.0.decrement_subscriptions();
+        #[cfg(feature = "metrics")]
         metrics::gauge!("ntfy_subscribers").decrement(1.0);
     }
 }

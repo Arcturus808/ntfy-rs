@@ -15,6 +15,7 @@ pub async fn health() -> Json<Value> {
 /// credentials. Must return `{"success":true}` with 200 when auth is disabled
 /// or the caller is authenticated, or 401 when credentials are required but
 /// missing/invalid. The app checks the JSON body, not just the status code.
+#[cfg(feature = "auth")]
 pub async fn topic_auth(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -37,6 +38,13 @@ pub async fn topic_auth(
     }
 }
 
+/// No-op topic_auth when auth feature is disabled — always succeeds.
+#[cfg(not(feature = "auth"))]
+pub async fn topic_auth() -> impl IntoResponse {
+    use axum::http::StatusCode;
+    (StatusCode::OK, Json(json!({ "success": true })))
+}
+
 /// GET /v1/version
 pub async fn version() -> Json<Value> {
     Json(json!({
@@ -51,18 +59,33 @@ pub async fn version() -> Json<Value> {
 /// which features are enabled. We return a minimal response with the fields the
 /// app actually checks; everything optional is false/empty.
 pub async fn config(State(state): State<AppState>) -> Json<Value> {
+    #[cfg(feature = "auth")]
+    let enable_login = state.config.auth_enabled;
+    #[cfg(not(feature = "auth"))]
+    let enable_login = false;
+
+    #[cfg(feature = "email")]
+    let enable_emails = state.config.smtp.is_some();
+    #[cfg(not(feature = "email"))]
+    let enable_emails = false;
+
+    #[cfg(feature = "webpush")]
+    let enable_web_push = state.vapid.is_some();
+    #[cfg(not(feature = "webpush"))]
+    let enable_web_push = false;
+
     Json(json!({
         "base_url":             state.config.base_url,
         "upstream_base_url":    state.config.upstream_base_url,
         "app_root":             "/",
-        "enable_login":         state.config.auth_enabled,
+        "enable_login":         enable_login,
         "require_login":        false,
-        "enable_signup":        state.config.auth_enabled,
+        "enable_signup":        enable_login,
         "enable_payments":      false,
         "enable_calls":         false,
-        "enable_emails":        state.config.smtp.is_some(),
+        "enable_emails":        enable_emails,
         "enable_reservations":  false,
-        "enable_web_push":      state.vapid.is_some(),
+        "enable_web_push":      enable_web_push,
         "disallowed_topics":    [],
     }))
 }
