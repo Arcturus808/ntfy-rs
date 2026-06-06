@@ -45,9 +45,9 @@ ntfy-rs uses Cargo feature flags to allow consumers to disable unused functional
 
 **Note:** SQLite (`rusqlite`, `r2d2`, `r2d2_sqlite`) is always required — it is deeply embedded in the server's publish/subscribe/manager pipeline.
 
-### Minimal embedded build (phone notifications only)
+### Minimal embedded build
 
-For an embedded use case like the DE-5000 Tauri app that only needs LAN phone notifications (no email, no metrics, no TLS, no web push, no auth, no Unix socket, no config file):
+For embedded use cases that only need core publish/subscribe (no email, no metrics, no TLS, no web push, no auth, no Unix socket, no config file):
 
 ```toml
 [dependencies]
