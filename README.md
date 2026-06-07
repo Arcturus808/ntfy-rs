@@ -29,37 +29,6 @@ No cgo, no system SQLite dependency, no Firebase requirement. Single static bina
 - UnifiedPush / Matrix Push Gateway relay
 - Web Push notifications (VAPID + RFC 8188 AES-128-GCM, pure Rust — no OpenSSL)
 
-## Feature flags
-
-ntfy-rs uses Cargo feature flags to allow consumers to disable unused functionality and reduce binary size. All features are enabled by default; disable them with `default-features = false` and enable only what you need.
-
-| Feature | Default | Description | Key dependencies removed when disabled |
-|---|---|---|---|
-| `email` | yes | Outbound SMTP email notifications | `lettre` (+16 transitive deps) |
-| `metrics` | yes | Prometheus metrics exposition (`/metrics`) | `metrics`, `metrics-exporter-prometheus` |
-| `tls` | yes | HTTPS listener (rustls + aws-lc-rs) | `axum-server`, `rustls` |
-| `webpush` | yes | Web Push notifications (VAPID/ECE) | `p256`, `aes-gcm`, `hkdf` |
-| `auth` | yes | Authentication: Basic, Bearer, ACL | `bcrypt` |
-| `unix-socket` | yes | Unix domain socket listener | `hyper`, `hyper-util` |
-| `config-file` | yes | TOML config file + CLI arg parsing | `clap`, `config` |
-
-**Note:** SQLite (`rusqlite`, `r2d2`, `r2d2_sqlite`) is always required — it is deeply embedded in the server's publish/subscribe/manager pipeline.
-
-### Minimal embedded build
-
-For embedded use cases that only need core publish/subscribe (no email, no metrics, no TLS, no web push, no auth, no Unix socket, no config file):
-
-```toml
-[dependencies]
-ntfy-rs = { git = "...", default-features = false }
-```
-
-This removes ~10–15 MB of compiled dependencies from the final binary.
-
-### Standalone server build
-
-The standalone `ntfy-rs` binary requires the `config-file` feature (for CLI arg parsing). Building with `cargo build --release` uses all default features automatically.
-
 ## Build
 
 ### Linux / macOS
@@ -143,6 +112,33 @@ handle.shutdown();
 | `shutdown()` | Signal the server to stop and wait for it to finish |
 
 The CLI binary (`ntfy-rs serve ...`) is a thin wrapper around this same library API.
+
+### Feature flags
+
+ntfy-rs uses Cargo feature flags to allow consumers to disable unused functionality and reduce binary size. All features are enabled by default; disable them with `default-features = false` and enable only what you need.
+
+| Feature | Default | Description | Key dependencies removed when disabled |
+|---|---|---|---|
+| `email` | yes | Outbound SMTP email notifications | `lettre` (+16 transitive deps) |
+| `metrics` | yes | Prometheus metrics exposition (`/metrics`) | `metrics`, `metrics-exporter-prometheus` |
+| `tls` | yes | HTTPS listener (rustls + aws-lc-rs) | `axum-server`, `rustls` |
+| `webpush` | yes | Web Push notifications (VAPID/ECE) | `p256`, `aes-gcm`, `hkdf` |
+| `auth` | yes | Authentication: Basic, Bearer, ACL | `bcrypt` |
+| `unix-socket` | yes | Unix domain socket listener | `hyper`, `hyper-util` |
+| `config-file` | yes | TOML config file + CLI arg parsing | `clap`, `config` |
+
+**Note:** SQLite (`rusqlite`, `r2d2`, `r2d2_sqlite`) is always required — it is deeply embedded in the server's publish/subscribe/manager pipeline.
+
+#### Minimal embedded build
+
+For embedded use cases that only need core publish/subscribe (no email, no metrics, no TLS, no web push, no auth, no Unix socket, no config file):
+
+```toml
+[dependencies]
+ntfy-rs = { git = "...", default-features = false }
+```
+
+This removes ~10–15 MB of compiled dependencies from the final binary.
 
 ## Quick start
 
