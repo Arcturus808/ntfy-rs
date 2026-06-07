@@ -1,5 +1,5 @@
 [package]
-name = "ntfy-rs"
+name = "ntfy-server-rs"
 version = "0.1.0-beta.5"
 edition = "2021"
 description = "Lightweight pub/sub notification server"
