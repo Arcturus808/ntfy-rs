@@ -5,7 +5,7 @@
   [![CI](https://github.com/Arcturus808/ntfy-rs/actions/workflows/release.yml/badge.svg)](https://github.com/Arcturus808/ntfy-rs/actions/workflows/release.yml)
   [![Release](https://img.shields.io/github/v/tag/Arcturus808/ntfy-rs?label=release&color=green)](https://github.com/Arcturus808/ntfy-rs/releases)
   [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-blueviolet)](https://github.com/sponsors/Arcturus808)
-  [![Coverage](https://codecov.io/gh/Arcturus808/ntfy-rs/graph/badge.svg?token=7SVEQLL1A5)](https://codecov.io/gh/Arcturus808/ntfy-rs)
+  [![Coverage](https://codecov.io/gh/Arcturus808/ntfy-rs/graph/badge.svg?token=B7HI6J8V2H)](https://codecov.io/gh/Arcturus808/ntfy-rs)
 </div>
 
 # ntfy-rs
