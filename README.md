@@ -189,9 +189,9 @@ All settings can be provided via config file (TOML), CLI flag, or `NTFY_*` envir
 ```toml
 # /etc/ntfy-rs/server.toml
 
-listen_http  = ":2586"
-listen_https = ":443"          # optional; requires cert_file + key_file
-listen_unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
+listen-http  = ":2586"
+listen-https = ":443"          # optional; requires cert-file + key-file
+listen-unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
 
 # The public URL clients use to reach this server.
 # MUST include the port number — the iOS app includes the port when
@@ -199,45 +199,45 @@ listen_unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
 # hashes the full URL. A mismatch means lock screen notifications
 # will not arrive on iOS. (Android is unaffected — it uses a
 # persistent WebSocket, not APNs.)
-base_url     = "https://ntfy.example.com:443"
-cache_file   = "/var/lib/ntfy-rs/cache.db"
-attachment_cache_dir = "/var/lib/ntfy-rs/attachments"
+base-url     = "https://ntfy.example.com:443"
+cache-file   = "/var/lib/ntfy-rs/cache.db"
+attachment-cache-dir = "/var/lib/ntfy-rs/attachments"
 
 # How long messages are retained (seconds). Default: 43200 (12 hours)
-cache_duration = 43200
+cache-duration = 43200
 
 # Maximum message body size (bytes). Default: 4096
-message_size_limit = 4096
+message-size-limit = 4096
 
 # TLS
-cert_file = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
-key_file  = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
+cert-file = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
+key-file  = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
 
 # Auth (optional). When set, auth is enabled.
-auth_file      = "/var/lib/ntfy-rs/auth.db"
-default_access = "read-write"  # read-write | read-only | deny-all
+auth-file      = "/var/lib/ntfy-rs/auth.db"
+default-access = "read-write"  # read-write | read-only | deny-all
 
 # Rate limiting
-request_limit_burst      = 60   # requests allowed in a burst
-request_limit_replenish  = 5    # seconds to replenish one token
+request-limit-burst      = 60   # requests allowed in a burst
+request-limit-replenish  = 5    # seconds to replenish one token
 
 # Subscription limit per IP
-subscription_limit = 30
+subscription-limit = 30
 
 # Keepalive interval for SSE/WS connections (seconds). Default: 45
-keepalive_interval = 45
+keepalive-interval = 45
 
 # Background manager interval (seconds). Default: 180
 # Controls delayed message delivery granularity.
-manager_interval = 180
+manager-interval = 180
 
 # Delayed message maximum (seconds). Default: 259200 (3 days)
-max_delay_secs = 259200
+max-delay-secs = 259200
 
 # iOS upstream poll-forward — required for iOS lock screen notifications.
 # Without this, iOS clients only receive notifications while the app is open.
-upstream_base_url      = "https://ntfy.sh"
-upstream_access_token  = ""    # optional Bearer token for upstream
+upstream-base-url      = "https://ntfy.sh"
+upstream-access-token  = ""    # optional Bearer token for upstream
 ```
 
 #### Local/LAN server (HTTP only, no TLS)
@@ -245,13 +245,13 @@ upstream_access_token  = ""    # optional Bearer token for upstream
 ```toml
 # server.toml — LAN-only setup, no TLS
 
-listen_http = ":2586"
+listen-http = ":2586"
 
-# base_url must include the port for iOS lock screen notifications to work.
-base_url             = "http://192.168.0.82:2586"
-upstream_base_url    = "https://ntfy.sh"
-cache_file           = "cache.db"
-attachment_cache_dir  = "attachments"
+# base-url must include the port for iOS lock screen notifications to work.
+base-url             = "http://192.168.0.82:2586"
+upstream-base-url    = "https://ntfy.sh"
+cache-file           = "cache.db"
+attachment-cache-dir  = "attachments"
 ```
 
 #### Local/LAN server (HTTPS with self-signed certificate)
@@ -261,16 +261,16 @@ See the [TLS → With a self-signed certificate](#with-a-self-signed-certificate
 ```toml
 # server.toml — LAN with self-signed HTTPS
 
-listen_http  = ":2586"
-listen_https = ":443"
+listen-http  = ":2586"
+listen-https = ":443"
 
-base_url             = "https://192.168.0.82:443"   # must include port
-upstream_base_url    = "https://ntfy.sh"
-cache_file           = "cache.db"
-attachment_cache_dir  = "attachments"
+base-url             = "https://192.168.0.82:443"   # must include port
+upstream-base-url    = "https://ntfy.sh"
+cache-file           = "cache.db"
+attachment-cache-dir  = "attachments"
 
-cert_file = "server-fullchain.crt"   # server cert + CA cert
-key_file  = "server.key"
+cert-file = "server-fullchain.crt"   # server cert + CA cert
+key-file  = "server.key"
 ```
 
 ### Environment variables
@@ -645,8 +645,8 @@ If you need to serve on port 80 or 443 without TLS termination by a reverse prox
 
 ```toml
 # server.toml — match Go ntfy defaults
-listen_http  = ":80"
-listen_https = ":443"
+listen-http  = ":80"
+listen-https = ":443"
 ```
 
 ```bash
