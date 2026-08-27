@@ -351,7 +351,7 @@ curl -H "Title: Server down" \
 |---|---|---|
 | `X-Title` | `Title`, `t` | Message title |
 | `X-Priority` | `Priority`, `prio`, `p` | `1`/`min` · `2`/`low` · `3`/`default` · `4`/`high` · `5`/`urgent` |
-| `X-Tags` | `Tags`, `tag`, `ta` | Comma-separated emoji shortcodes (auto-resolved to unicode, e.g. `white_check_mark` → ✅) |
+| `X-Tags` | `Tags`, `tag`, `ta` | Comma-separated emoji shortcodes (auto-resolved to unicode, e.g. `white_check_mark` → ✅). Raw emoji characters are not recognized — use shortcodes (e.g. `tada`, not `🎉`). |
 | `X-Click` | `Click` | URL to open on click |
 | `X-Icon` | `Icon` | Icon URL |
 | `X-Markdown` | `Markdown`, `md` | `1` to render body as Markdown |
