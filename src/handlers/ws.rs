@@ -275,7 +275,7 @@ async fn handle_ws_multi(
 async fn send_json(socket: &mut WebSocket, msg: &Message) -> Result<(), ()> {
     let text = serde_json::to_string(msg).map_err(|_| ())?;
     socket
-        .send(WsMessage::Text(text.into()))
+        .send(WsMessage::Text(text))
         .await
         .map_err(|_| ())
 }

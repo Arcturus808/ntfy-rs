@@ -7,8 +7,9 @@
 //! upstream server then triggers an APNs wake via FCM, and the iOS app wakes
 //! and polls the self-hosted server for the actual message content.
 //!
-//! The poll request is a PUT to `{upstream_base_url}/{sha256(topic)}` with a
-//! minimal body. The upstream server never sees the message content.
+//! The poll request is a POST to `{upstream_base_url}/{sha256(topic)}` with a
+//! JSON body containing a generic "New message" fallback (matching the Go ntfy
+//! server format). The upstream server never sees the actual message content.
 
 use crate::config::Config;
 use sha2::{Digest, Sha256};
@@ -36,10 +37,15 @@ pub async fn forward_poll(config: &Config, topic: &str, msg_id: &str, client: &r
     let topic_hash = sha256_hex(&topic_url);
     let url = format!("{upstream}/{topic_hash}");
 
+    let body = format!(
+        r#"{{"id":"{msg_id}","event":"poll_request","topic":"{topic_hash}","message":"New message","poll_id":"{msg_id}"}}"#
+    );
+
     let mut req = client
         .post(&url)
         .header("X-Poll-ID", msg_id)
-        .body("");
+        .header("Content-Type", "application/json")
+        .body(body);
 
     if let Some(token) = &config.upstream_access_token {
         req = req.bearer_auth(token);

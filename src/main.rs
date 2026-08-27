@@ -7,9 +7,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 async fn main() -> anyhow::Result<()> {
     let cli = ntfy_rs::config::Cli::parse();
 
-    let serve_args = match cli.command {
-        ntfy_rs::config::Commands::Serve(args) => args,
-    };
+    let ntfy_rs::config::Commands::Serve(serve_args) = cli.command;
 
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(&serve_args.log_level));
