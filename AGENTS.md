@@ -20,6 +20,7 @@ GitHub Actions free tier is limited. The CI workflow (`ci.yml`) runs on every pu
 
 **Rules:**
 - **Default: add `[skip ci]` to ALL commit and merge messages** — CI is only run deliberately, not on every push
+- **Remove `[skip ci]` for release commits** — the release commit is the tag target, so `[skip ci]` would suppress the release workflow triggered by the tag push. Use a message like `release: bump version to vX.Y.Z` (no `[skip ci]`)
 - **Remove `[skip ci]` only when preparing for a release** or when you need CI to verify a significant change
 - **Run checks locally before pushing** to avoid wasted CI minutes on broken builds:
   ```
@@ -49,7 +50,7 @@ The declared MSRV is 1.85 (set in `Cargo.toml` via `rust-version`). This is driv
 - **Branch from `main`** and merge back with `--no-ff` to preserve branch history.
 - **Run pre-commit checks** (`cargo check`, `cargo clippy`, `cargo test`) on the branch before merging build-affecting changes.
 - **Delete the branch after merging to `main`**.
-- **Merge commit messages** follow the pattern: `Merge <branch-name>: <short description> [skip ci]` (always include `[skip ci]` unless explicitly preparing for a release).
+- **Merge commit messages** follow the pattern: `Merge <branch-name>: <short description> [skip ci]` (always include `[skip ci]` except for release merges — see CI Credit Conservation above).
 - **Branch pushes don't trigger CI** — only pushes to `main` and PRs against `main` trigger `ci.yml`.
 
 ## Pre-commit Checks
