@@ -5,6 +5,7 @@ edition = "2021"
 description = "Lightweight pub/sub notification server"
 license = "Apache-2.0 OR GPL-2.0-only"
 repository = "https://github.com/Arcturus808/ntfy-rs"
+rust-version = "1.85"
 
 [lib]
 name = "ntfy_rs"
