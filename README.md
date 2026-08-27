@@ -82,7 +82,7 @@ The first build takes a few minutes (SQLite is compiled from source). Subsequent
 > - `linker 'link.exe' not found` — the C++ build tools are not on your PATH. Re-open the terminal after installing them, or use the "x64 Native Tools Command Prompt" shortcut installed with Visual Studio.
 > - `cargo not found` — close and reopen the terminal after installing rustup; it modifies `PATH` but the current session won't see the change.
 
-> **Note:** the Unix domain socket listener is disabled on Windows (`listen_unix` has no effect). All other features work normally.
+> **Note:** the Unix domain socket listener is disabled on Windows (`listen-unix` has no effect). All other features work normally.
 
 > **Windows AV note:** the release binary uses [aws-lc-rs](https://github.com/aws/aws-lc-rs) as the crypto backend for all TLS operations across the entire dependency tree. It relies only on documented Windows APIs (`BCryptGenRandom`). The `ring` crate, which calls the undocumented `SystemFunction036` (`RtlGenRandom`) and can trigger false positives in behaviour-based AV scanners, is not present in the binary.
 
@@ -212,9 +212,9 @@ All settings can be provided via config file (TOML), CLI flag, or `NTFY_*` envir
 ```toml
 # /etc/ntfy-rs/server.toml
 
-listen_http  = ":2586"
-listen_https = ":443"          # optional; requires cert_file + key_file
-listen_unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
+listen-http  = ":2586"
+listen-https = ":443"          # optional; requires cert-file + key-file
+listen-unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
 
 # The public URL clients use to reach this server.
 # MUST include the port number — the iOS app includes the port when
@@ -222,45 +222,45 @@ listen_unix  = "/run/ntfy-rs/ntfy-rs.sock"  # optional
 # hashes the full URL. A mismatch means lock screen notifications
 # will not arrive on iOS. (Android is unaffected — it uses a
 # persistent WebSocket, not APNs.)
-base_url     = "https://ntfy.example.com:443"
-cache_file   = "/var/lib/ntfy-rs/cache.db"
-attachment_cache_dir = "/var/lib/ntfy-rs/attachments"
+base-url     = "https://ntfy.example.com:443"
+cache-file   = "/var/lib/ntfy-rs/cache.db"
+attachment-cache-dir = "/var/lib/ntfy-rs/attachments"
 
 # How long messages are retained (seconds). Default: 43200 (12 hours)
-cache_duration = 43200
+cache-duration = 43200
 
 # Maximum message body size (bytes). Default: 4096
-message_size_limit = 4096
+message-size-limit = 4096
 
 # TLS
-cert_file = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
-key_file  = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
+cert-file = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
+key-file  = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
 
 # Auth (optional). When set, auth is enabled.
-auth_file      = "/var/lib/ntfy-rs/auth.db"
-default_access = "read-write"  # read-write | read-only | deny-all
+auth-file      = "/var/lib/ntfy-rs/auth.db"
+default-access = "read-write"  # read-write | read-only | deny-all
 
 # Rate limiting
-request_limit_burst      = 60   # requests allowed in a burst
-request_limit_replenish  = 5    # seconds to replenish one token
+request-limit-burst      = 60   # requests allowed in a burst
+request-limit-replenish  = 5    # seconds to replenish one token
 
 # Subscription limit per IP
-subscription_limit = 30
+subscription-limit = 30
 
 # Keepalive interval for SSE/WS connections (seconds). Default: 45
-keepalive_interval = 45
+keepalive-interval = 45
 
 # Background manager interval (seconds). Default: 180
 # Controls delayed message delivery granularity.
-manager_interval = 180
+manager-interval = 180
 
 # Delayed message maximum (seconds). Default: 259200 (3 days)
-max_delay_secs = 259200
+max-delay-secs = 259200
 
 # iOS upstream poll-forward — required for iOS lock screen notifications.
 # Without this, iOS clients only receive notifications while the app is open.
-upstream_base_url      = "https://ntfy.sh"
-upstream_access_token  = ""    # optional Bearer token for upstream
+upstream-base-url      = "https://ntfy.sh"
+upstream-access-token  = ""    # optional Bearer token for upstream
 ```
 
 #### Local/LAN server (HTTP only, no TLS)
@@ -268,13 +268,13 @@ upstream_access_token  = ""    # optional Bearer token for upstream
 ```toml
 # server.toml — LAN-only setup, no TLS
 
-listen_http = ":2586"
+listen-http = ":2586"
 
-# base_url must include the port for iOS lock screen notifications to work.
-base_url             = "http://192.168.0.82:2586"
-upstream_base_url    = "https://ntfy.sh"
-cache_file           = "cache.db"
-attachment_cache_dir  = "attachments"
+# base-url must include the port for iOS lock screen notifications to work.
+base-url             = "http://192.168.0.82:2586"
+upstream-base-url    = "https://ntfy.sh"
+cache-file           = "cache.db"
+attachment-cache-dir  = "attachments"
 ```
 
 #### Local/LAN server (HTTPS with self-signed certificate)
@@ -284,16 +284,16 @@ See the [TLS → With a self-signed certificate](#with-a-self-signed-certificate
 ```toml
 # server.toml — LAN with self-signed HTTPS
 
-listen_http  = ":2586"
-listen_https = ":443"
+listen-http  = ":2586"
+listen-https = ":443"
 
-base_url             = "https://192.168.0.82:443"   # must include port
-upstream_base_url    = "https://ntfy.sh"
-cache_file           = "cache.db"
-attachment_cache_dir  = "attachments"
+base-url             = "https://192.168.0.82:443"   # must include port
+upstream-base-url    = "https://ntfy.sh"
+cache-file           = "cache.db"
+attachment-cache-dir  = "attachments"
 
-cert_file = "server-fullchain.crt"   # server cert + CA cert
-key_file  = "server.key"
+cert-file = "server-fullchain.crt"   # server cert + CA cert
+key-file  = "server.key"
 ```
 
 ### Environment variables
@@ -393,9 +393,9 @@ curl -s ntfy.example.com/topic1,topic2/json
 
 ### Mobile apps
 
-The subscription URL in the ntfy app **must match `base_url`** (including the port) for iOS lock screen notifications to work. The APNs hash is derived from the full URL, so a mismatch means the app won't be woken by push notifications.
+The subscription URL in the ntfy app **must match `base-url`** (including the port) for iOS lock screen notifications to work. The APNs hash is derived from the full URL, so a mismatch means the app won't be woken by push notifications.
 
-| Scenario | Server `base_url` | App subscription URL | Extra steps |
+| Scenario | Server `base-url` | App subscription URL | Extra steps |
 |---|---|---|---|
 | **Public server, real domain** | `https://ntfy.example.com:443` | `https://ntfy.example.com:443` | None — real cert is trusted automatically |
 | **LAN, HTTP only** | `http://192.168.0.82:2586` | `http://192.168.0.82:2586` | None — simplest setup |
@@ -405,11 +405,11 @@ The subscription URL in the ntfy app **must match `base_url`** (including the po
 
 ## Authentication
 
-Auth is disabled by default. Set `auth_file` to enable it.
+Auth is disabled by default. Set `auth-file` to enable it.
 
 ```toml
-auth_file      = "/var/lib/ntfy-rs/auth.db"
-default_access = "deny-all"
+auth-file      = "/var/lib/ntfy-rs/auth.db"
+default-access = "deny-all"
 ```
 
 ### Bootstrap the first admin
@@ -482,9 +482,9 @@ curl -u admin:secret -X DELETE ntfy.example.com/v1/admin/users/bob
 Use a CA-signed certificate (e.g., Let's Encrypt). No special client configuration needed — iOS trusts it automatically.
 
 ```toml
-listen_https = ":443"
-cert_file    = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
-key_file     = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
+listen-https = ":443"
+cert-file    = "/etc/letsencrypt/live/ntfy.example.com/fullchain.pem"
+key-file     = "/etc/letsencrypt/live/ntfy.example.com/privkey.pem"
 ```
 
 ### With a self-signed certificate (local/LAN only)
@@ -549,11 +549,11 @@ cat server.crt localCA.crt > server-fullchain.crt
 #### Step 2: Configure the server
 
 ```toml
-listen_https = ":443"
-cert_file    = "server-fullchain.crt"   # fullchain, not just server.crt
-key_file     = "server.key"
+listen-https = ":443"
+cert-file    = "server-fullchain.crt"   # fullchain, not just server.crt
+key-file     = "server.key"
 
-base_url     = "https://192.168.0.82:443"   # must include port
+base-url     = "https://192.168.0.82:443"   # must include port
 ```
 
 #### Step 3: Install the CA on client devices
@@ -576,15 +576,15 @@ base_url     = "https://192.168.0.82:443"   # must include port
 
 #### Step 4: Subscribe in the ntfy app
 
-Use the full URL including port: `https://192.168.0.82:443`. The app must connect with the same URL that `base_url` is set to, or lock screen notifications will not work.
+Use the full URL including port: `https://192.168.0.82:443`. The app must connect with the same URL that `base-url` is set to, or lock screen notifications will not work.
 
 ---
 
-If `listen_https` is set but `cert_file`/`key_file` are missing, a warning is logged and the server continues on HTTP only. Certificate hot-reload is not supported; restart the server to pick up a new cert.
+If `listen-https` is set but `cert-file`/`key-file` are missing, a warning is logged and the server continues on HTTP only. Certificate hot-reload is not supported; restart the server to pick up a new cert.
 
 ## UnifiedPush / Matrix gateway
 
-ntfy-rs acts as a [Matrix Push Gateway](https://spec.matrix.org/v1.2/push-gateway-api/) for UnifiedPush. Set `base_url` and point your Matrix homeserver's pusher URL to `/_matrix/push/v1/notify`.
+ntfy-rs acts as a [Matrix Push Gateway](https://spec.matrix.org/v1.2/push-gateway-api/) for UnifiedPush. Set `base-url` and point your Matrix homeserver's pusher URL to `/_matrix/push/v1/notify`.
 
 ```bash
 # Discovery
@@ -603,20 +603,20 @@ This means a self-hosted ntfy-rs server **cannot wake the iOS ntfy app directly*
 ntfy-rs works around this with **upstream poll-forward**:
 
 1. A message is published to your ntfy-rs server.
-2. ntfy-rs sends a lightweight wake signal to `upstream_base_url` (ntfy.sh). The topic is hashed (`sha256(base_url + "/" + topic)`) so ntfy.sh never learns the actual topic name or message content.
+2. ntfy-rs sends a lightweight wake signal to `upstream-base-url` (ntfy.sh). The topic is hashed (`sha256(base-url + "/" + topic)`) so ntfy.sh never learns the actual topic name or message content.
 3. ntfy.sh triggers APNs, which wakes the iOS app.
 4. The app polls your ntfy-rs server for the actual message.
 
-**Message content never passes through ntfy.sh** — it only carries the opaque hash and a message ID. This is why `upstream_base_url` and `base_url` must be configured correctly:
+**Message content never passes through ntfy.sh** — it only carries the opaque hash and a message ID. This is why `upstream-base-url` and `base-url` must be configured correctly:
 
-- **`base_url`** is required — the topic hash is derived from the full topic URL (`base_url/topic`). Without it the wrong hash is sent and iOS notifications will not arrive.
-- **`base_url` must exactly match the URL the iOS app uses to connect, including the port number** — even for default ports like 443 or 80 (e.g. `https://192.168.0.82:443`, not `https://192.168.0.82`). The iOS app includes the port in its registration URL, so a mismatch causes the hash to differ and APNs wake-ups will not reach the device.
+- **`base-url`** is required — the topic hash is derived from the full topic URL (`base-url/topic`). Without it the wrong hash is sent and iOS notifications will not arrive.
+- **`base-url` must exactly match the URL the iOS app uses to connect, including the port number** — even for default ports like 443 or 80 (e.g. `https://192.168.0.82:443`, not `https://192.168.0.82`). The iOS app includes the port in its registration URL, so a mismatch causes the hash to differ and APNs wake-ups will not reach the device.
 - **Android is unaffected** — Android clients maintain a persistent WebSocket to your server and don't use APNs.
 
 ```toml
-base_url              = "http://192.168.0.82:2586"
-upstream_base_url     = "https://ntfy.sh"
-upstream_access_token = ""   # optional; set if you have a ntfy.sh account with higher rate limits
+base-url              = "http://192.168.0.82:2586"
+upstream-base-url     = "https://ntfy.sh"
+upstream-access-token = ""   # optional; set if you have a ntfy.sh account with higher rate limits
 ```
 
 Or via CLI flags:
@@ -668,8 +668,8 @@ If you need to serve on port 80 or 443 without TLS termination by a reverse prox
 
 ```toml
 # server.toml — match Go ntfy defaults
-listen_http  = ":80"
-listen_https = ":443"
+listen-http  = ":80"
+listen-https = ":443"
 ```
 
 ```bash
