@@ -79,3 +79,9 @@ wsl -d Ubuntu -- bash -c "source ~/.cargo/env && cd /mnt/<your-repo-path> && car
 2. If YES → verify locally (check, clippy, test) before committing. For Linux-specific issues, also run WSL checks.
 3. If NO → no local verification needed.
 4. **Always add `[skip ci]` to the commit message** — regardless of whether the change is build-affecting or not. CI is only run deliberately during release prep.
+
+## Changelog Rules
+
+- **Update `CHANGELOG.md` with every merge** — add a line under `## [Unreleased]` in the appropriate section (Added / Changed / Fixed / Removed)
+- **When cutting a release**, rename `## [Unreleased]` to `## [vX.Y.Z] - YYYY-MM-DD` and start a fresh `## [Unreleased]` section
+- **Group related changes** — if multiple commits address the same issue, one changelog entry is sufficient
