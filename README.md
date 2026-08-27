@@ -31,9 +31,32 @@ No cgo, no system SQLite dependency, no Firebase requirement. Single static bina
 
 ## Build
 
-### Linux / macOS
+**Requires Rust 1.85 or later** ([rustup.rs](https://rustup.rs)). A C/C++ compiler is also required — `aws-lc-sys` compiles AWS-LC from source (TLS backend) and `rusqlite` compiles SQLite from source (message cache).
+
+### Linux
+
+Install build tools:
+
+| Distro | Command |
+|---|---|
+| Debian / Ubuntu | `sudo apt install build-essential pkg-config` |
+| Fedora | `sudo dnf install gcc gcc-c++ make pkgconf-pkg-config` |
+| Arch | `sudo pacman -S base-devel` |
+| openSUSE | `sudo zypper install -t pattern devel_basis` |
+
+Then build:
 
 ```bash
+cargo build --release
+# output: target/release/ntfy-rs
+```
+
+The first build takes a few minutes (SQLite and AWS-LC are compiled from source). Subsequent builds are fast.
+
+### macOS
+
+```bash
+xcode-select --install  # installs clang and build tools (one-time)
 cargo build --release
 # output: target/release/ntfy-rs
 ```
