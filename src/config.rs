@@ -443,18 +443,22 @@ mod tests {
     #[cfg(feature = "email")]
     #[test]
     fn test_resolve_smtp_disabled_when_no_to() {
-        let mut file = FileConfig::default();
-        file.smtp_host = Some("smtp.example.com".to_string());
-        file.smtp_to = Some(vec![]);
+        let file = FileConfig {
+            smtp_host: Some("smtp.example.com".to_string()),
+            smtp_to: Some(vec![]),
+            ..Default::default()
+        };
         assert!(resolve_smtp(&file).is_none());
     }
 
     #[cfg(feature = "email")]
     #[test]
     fn test_resolve_smtp_defaults() {
-        let mut file = FileConfig::default();
-        file.smtp_host = Some("smtp.example.com".to_string());
-        file.smtp_to = Some(vec!["user@example.com".to_string()]);
+        let file = FileConfig {
+            smtp_host: Some("smtp.example.com".to_string()),
+            smtp_to: Some(vec!["user@example.com".to_string()]),
+            ..Default::default()
+        };
 
         let smtp = resolve_smtp(&file).unwrap();
         assert_eq!(smtp.host, "smtp.example.com");
@@ -469,10 +473,12 @@ mod tests {
     #[cfg(feature = "email")]
     #[test]
     fn test_resolve_smtp_starttls_false() {
-        let mut file = FileConfig::default();
-        file.smtp_host = Some("localhost".to_string());
-        file.smtp_to = Some(vec!["test@localhost".to_string()]);
-        file.smtp_starttls = Some(false);
+        let file = FileConfig {
+            smtp_host: Some("localhost".to_string()),
+            smtp_to: Some(vec!["test@localhost".to_string()]),
+            smtp_starttls: Some(false),
+            ..Default::default()
+        };
 
         let smtp = resolve_smtp(&file).unwrap();
         assert!(!smtp.starttls);
@@ -481,10 +487,12 @@ mod tests {
     #[cfg(feature = "email")]
     #[test]
     fn test_resolve_smtp_password_from_field() {
-        let mut file = FileConfig::default();
-        file.smtp_host = Some("smtp.example.com".to_string());
-        file.smtp_to = Some(vec!["user@example.com".to_string()]);
-        file.smtp_password = Some("field-password".to_string());
+        let file = FileConfig {
+            smtp_host: Some("smtp.example.com".to_string()),
+            smtp_to: Some(vec!["user@example.com".to_string()]),
+            smtp_password: Some("field-password".to_string()),
+            ..Default::default()
+        };
 
         let smtp = resolve_smtp(&file).unwrap();
         assert_eq!(smtp.password, "field-password");

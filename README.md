@@ -613,6 +613,8 @@ ntfy-rs works around this with **upstream poll-forward**:
 - **`base-url` must exactly match the URL the iOS app uses to connect, including the port number** — even for default ports like 443 or 80 (e.g. `https://192.168.0.82:443`, not `https://192.168.0.82`). The iOS app includes the port in its registration URL, so a mismatch causes the hash to differ and APNs wake-ups will not reach the device.
 - **Android is unaffected** — Android clients maintain a persistent WebSocket to your server and don't use APNs.
 
+> **Lock screen appearance:** Because the poll request only carries a topic hash and a generic "New message" fallback (not the actual message content), iOS lock screen notifications show a generic alert. The full title, message, and tags are visible when you open the app. This is a limitation of the poll-forward architecture, not a bug — the Go ntfy server has the same behavior when self-hosted.
+
 ```toml
 base-url              = "http://192.168.0.82:2586"
 upstream-base-url     = "https://ntfy.sh"
