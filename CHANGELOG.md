@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.0-beta.8] - 2026-08-26
+
 ### Fixed
 - TOML config examples in README now use kebab-case (matching `serde(rename_all = "kebab-case")` in `src/config.rs`)
 - iOS lock screen notifications now show "New message" instead of bare "ntfy / notification" — achieved by sending a JSON poll request body with a fallback message, matching the Go ntfy server format
@@ -17,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added lock screen appearance note to iOS upstream poll-forward docs section
 - Declared MSRV 1.85 in `Cargo.toml` (driven by `lettre 0.11.22` and `clap 4.6.1`)
 - Added Linux build prerequisites (C compiler, `pkg-config`, OpenSSL dev libs) to README
-- Added `AGENTS.md` with development rules: CI credit conservation, branching strategy, pre-commit checks, MSRV policy
+- Added `AGENTS.md` with development rules: CI credit conservation, branching strategy, pre-commit checks, MSRV policy, changelog rules
+- Added `CHANGELOG.md` with retroactive entries for all prior releases
 
 ## [v0.1.0-beta.7] - 2026-08-22
 
