@@ -417,6 +417,7 @@ default-access = "deny-all"
 ```bash
 # Register via API
 curl -X POST ntfy.example.com/v1/account \
+  -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"secret"}'
 
 # Promote to admin directly in the DB
@@ -429,6 +430,7 @@ sqlite3 /var/lib/ntfy-rs/auth.db \
 ```bash
 # Register
 curl -X POST ntfy.example.com/v1/account \
+  -H "Content-Type: application/json" \
   -d '{"username":"alice","password":"pass"}'
 
 # Get own account info
@@ -436,10 +438,12 @@ curl -u alice:pass ntfy.example.com/v1/account
 
 # Change password
 curl -u alice:pass -X PUT ntfy.example.com/v1/account/password \
+  -H "Content-Type: application/json" \
   -d '{"password":"newpass"}'
 
 # Create Bearer token
 curl -u alice:pass -X POST ntfy.example.com/v1/account/token \
+  -H "Content-Type: application/json" \
   -d '{"label":"my-app","expires":1800000000}'
 
 # Revoke token
@@ -447,6 +451,7 @@ curl -u alice:pass -X DELETE ntfy.example.com/v1/account/token/tk_...
 
 # Grant topic access
 curl -u alice:pass -X POST ntfy.example.com/v1/account/access \
+  -H "Content-Type: application/json" \
   -d '{"topic":"mytopic","read":true,"write":true}'
 
 # Delete own account
@@ -461,14 +466,17 @@ curl -u admin:secret ntfy.example.com/v1/admin/users
 
 # Create user
 curl -u admin:secret -X POST ntfy.example.com/v1/admin/users \
+  -H "Content-Type: application/json" \
   -d '{"username":"bob","password":"pass","role":"user"}'
 
 # Change role
 curl -u admin:secret -X PUT ntfy.example.com/v1/admin/users/bob/role \
+  -H "Content-Type: application/json" \
   -d '{"role":"admin"}'
 
 # Set ACL for user
 curl -u admin:secret -X POST ntfy.example.com/v1/admin/users/bob/access \
+  -H "Content-Type: application/json" \
   -d '{"topic":"alerts","read":true,"write":false}'
 
 # Delete user

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- README curl examples for JSON endpoints (`/v1/account`, `/v1/admin`) now include `Content-Type: application/json` — `curl -d` defaults to `application/x-www-form-urlencoded`, which the JSON extractor rejects
+
 ## [v0.1.0-beta.8] - 2026-08-26
 
 ### Fixed
